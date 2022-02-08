@@ -23,7 +23,9 @@ defmodule DomainNameOperator.MixProject do
     [
       {:bonny, "~> 0.4"},
       {:tesla, "~> 1.4"},
-      {:hackney, "~> 1.17"}
+      {:hackney, "~> 1.17"},
+      {:cloudflare_api, "~> 0.0"},
+      {:iptools, "~> 0.0"}
     ]
   end
 end
