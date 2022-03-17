@@ -6,7 +6,6 @@ metadata:
     k8s-app: domain-name-operator
   name: cloudflarednsrecords.domain-name-operator.tamx.org
 spec:
-  additionalPrinterColumns: []
   group: domain-name-operator.tamx.org
   names:
     kind: CloudflareDnsRecord
@@ -37,8 +36,7 @@ spec:
                   type: string
                 zone_id:
                   type: string
-
-
+      additionalPrinterColumns: []
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -57,7 +55,7 @@ rules:
   - apiGroups:
       - domain-name-operator.tamx.org
     resources:
-      - cloudflare_dns_records
+      - cloudflarednsrecords
     verbs:
       - '*'
   - apiGroups:
@@ -74,7 +72,7 @@ metadata:
   labels:
     k8s-app: domain-name-operator
   name: domain-name-operator
-  namespace: default
+  namespace: domain-name-operator
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -90,4 +88,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: domain-name-operator
-    namespace: default
+    namespace: domain-name-operator

@@ -48,7 +48,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   [Additional Printer Columns docs](https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/#additional-printer-columns)
 
   ### Examples
-  
+
   ```
   @additional_printer_columns [
     %{
@@ -59,9 +59,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     }
   ]
   ```
-  
-  """
 
+  """
 
   #
   # Example Payload:
@@ -99,13 +98,14 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   use Bonny.Controller
 
   alias CloudflareApi.DnsRecord
+  alias DomainNameOperator.CloudflareOps
 
   @group "domain-name-operator.tamx.org"
   @version "v1"
 
   @scope :cluster
   @names %{
-    plural: "cloudflare_dns_records",
+    plural: "cloudflarednsrecords",
     singular: "cloudflarednsrecord",
     kind: "CloudflareDnsRecord",
     shortNames: ["dns"]
@@ -122,10 +122,12 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec add(map()) :: :ok | :error
   @impl Bonny.Controller
   def add(%{} = cloudflarednsrecord) do
+    IO.puts "HANDLING ADD"
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
     record = parse(cloudflarednsrecord)
+
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       :ok
     else
@@ -139,10 +141,12 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec modify(map()) :: :ok | :error
   @impl Bonny.Controller
   def modify(%{} = cloudflarednsrecord) do
+    IO.puts "HANDLING MODIFY"
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
     record = parse(cloudflarednsrecord)
+
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       :ok
     else
@@ -156,10 +160,12 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec delete(map()) :: :ok | :error
   @impl Bonny.Controller
   def delete(%{} = cloudflarednsrecord) do
+    IO.puts "HANDLING DELETE"
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
     record = parse(cloudflarednsrecord)
+
     with {:ok, cf} <- CloudflareOps.delete_record(record) do
       :ok
     else
@@ -173,11 +179,14 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec reconcile(map()) :: :ok | :error
   @impl Bonny.Controller
   def reconcile(%{} = cloudflarednsrecord) do
+    IO.puts "HANDLING RECONCILE"
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
-    record = parse(cloudflarednsrecord)
+    {:ok, record} = parse(cloudflarednsrecord)
+
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
+      require IEx; IEx.pry
       :ok
     else
       err -> :err
@@ -217,34 +226,71 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #   }
   #
 
-  defp parse(%{"metadata" => %{"name" => _name, "namespace" => _ns}, "spec" => %{"namespace" => ns, "serviceName" => name, "hostName" => hostname, "domain" => domain, "zone_id" => zone_id}}) do
-    %{
-      "status" => %{
-        "loadBalancer" => %{
-          "ingress" => [
-            %{"ip" => ip}
-          ]
-        }
-      }
-    } = get_service(ns, name)
+  defp crd_to_cloudflare_record(%{
+         "metadata" => %{"name" => _name},
+         "spec" => %{
+           "namespace" => ns,
+           "serviceName" => name,
+           "hostName" => hostname,
+           "domain" => domain,
+           "zone_id" => zone_id
+         }
+       }) do
 
-    with {:ok, _} <- Iptools.is_ipv4(ip),
+  end
+
+  defp parse(%{
+         "metadata" => %{"name" => _name},
+         "spec" => %{
+           "namespace" => ns,
+           "serviceName" => name,
+           "hostName" => hostname,
+           "domain" => domain,
+           "zone_id" => zone_id
+         }
+       }) do
+    with {:ok, service} <- get_service(ns, name),
+         {:ok, ip} <- parse_svc_ip(service),
+         {:ok, _} <- is_ipv4?(ip),
          {:ok, _} <- validate_hostname(hostname),
          {:ok, _} <- validate_domain(domain),
          {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, ip) do
       {:ok, cfar}
     else
+      {:error, :not_found} -> nil
+      {:error, :bad_ip} -> nil
+      {:error, err} -> err
       err -> {:error, err}
     end
   end
 
+  defp is_ipv4?(ip) do
+    case Iptools.is_ipv4?(ip) do
+      true -> {:ok, true}
+      false -> {:err, :bad_ip}
+    end
+  end
+
+  defp parse_svc_ip(%{
+    "status" => %{
+      "loadBalancer" => %{
+        "ingress" => [
+          %{"ip" => ip}
+        ]
+      }
+    }
+  }) do
+    {:ok, ip}
+  end
+
   defp assemble_cf_a_record(zone_id, hostname, ip) do
     cfar = %DnsRecord{
-             zone_id: zone_id,
-             hostname: hostname,
-             #ip: List.first(service.status.loadBalancer.ingress).ip
-             ip: ip
-           }
+      zone_id: zone_id,
+      hostname: hostname,
+      # ip: List.first(service.status.loadBalancer.ingress).ip
+      ip: ip
+    }
+
     {:ok, cfar}
   end
 
@@ -258,21 +304,37 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       }
     }
 
-    with {:ok, conn} <- K8s.Conn.from_service_account(),
+    # New k8s version
+    #with {:ok, conn} <- K8s.Conn.from_service_account(),
+    #     operation <- K8s.Client.get(svc),
+    #     {:ok, result} <- K8s.Client.run(conn, operation) do
+    #  {:ok, result}
+
+    #with {:ok, conn} <- K8s.Conn.from_service_account(),
+    with conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
          operation <- K8s.Client.get(svc),
-         {:ok, result} <- K8s.Client.run(conn, operation) do
+         #{:ok, result} <- K8s.Client.run(conn, operation) do
+         {:ok, result} <- K8s.Client.run(operation, :default) do
       {:ok, result}
     else
-      {:error, err} -> {:error, err}
-      err -> {:error, err}
+      err -> 
+        require IEx; IEx.pry
+        {:error, err}
+      # {:error, :not_found} -> 
+        # The specified service doesn't exist!  Tell user about error somehow and stop
+        # {:error, err}
+      # {:error, err} -> {:error, err}
+      # err -> {:error, err}
     end
   end
 
   defp validate_hostname(hostname) do
     # TODO
+    {:ok, true}
   end
 
   defp validate_domain(domain) do
     # TODO
+    {:ok, true}
   end
 end

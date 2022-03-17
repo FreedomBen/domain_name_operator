@@ -52,6 +52,7 @@ defmodule DomainNameOperator.CloudflareOps do
     # Check if record exists already. We are assuming that only one
     # record will exist for any given hostname
     # First create new record, then delete old record
+
     prev_recs = get_a_records(record.hostname)
 
     # record exists yet?  If record does not exist, create one and delete others for this hostname

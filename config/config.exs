@@ -15,7 +15,8 @@ config :bonny,
   ],
 
   # Your kube config file here
-  kubeconf_file: "~/.kube/config",
+  # kubeconf_file: "~/.kube/config",
+  kubeconf_file: "~/.kube/ameelio-k8s-dev-kubeconfig.yaml",
 
   # Bonny will default to using your current-context, optionally set cluster: and user: here.
   # kubeconf_opts: [cluster: "my-cluster", user: "my-user"]
