@@ -34,7 +34,7 @@ spec:
                   type: string
                 domain:
                   type: string
-                zone_id:
+                zoneId:
                   type: string
       additionalPrinterColumns: []
 

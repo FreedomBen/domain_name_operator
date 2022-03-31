@@ -90,7 +90,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #       "serviceName" => "Howdy",
   #       "hostName" => "malan-staging",
   #       "domain" => "ameelio.xyz",
-  #       "zone_id" => "abcdefg"
+  #       "zoneId" => "abcdefg"
   #     }
   #   }
   #
@@ -98,7 +98,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   use Bonny.Controller
 
   alias CloudflareApi.DnsRecord
-  alias DomainNameOperator.CloudflareOps
+  alias DomainNameOperator.{Utils, CloudflareOps}
+
+  require Logger
 
   @group "domain-name-operator.tamx.org"
   @version "v1"
@@ -122,16 +124,19 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec add(map()) :: :ok | :error
   @impl Bonny.Controller
   def add(%{} = cloudflarednsrecord) do
-    IO.puts "HANDLING ADD"
+    Logger.info("Handling Add")
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
     record = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
+      Logger.info("Added or updated record: cf=#{Utils.map_to_string(cf)}")
       :ok
     else
-      err -> :err
+      err ->
+        Logger.error("Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}")
+        :error
     end
   end
 
@@ -141,16 +146,19 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec modify(map()) :: :ok | :error
   @impl Bonny.Controller
   def modify(%{} = cloudflarednsrecord) do
-    IO.puts "HANDLING MODIFY"
+    Logger.info("Handling Modify")
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
     record = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
+      Logger.info("Added or updated record: cf=#{Utils.map_to_string(cf)}")
       :ok
     else
-      err -> :err
+      err ->
+        Logger.error("Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}")
+        :error
     end
   end
 
@@ -160,16 +168,19 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec delete(map()) :: :ok | :error
   @impl Bonny.Controller
   def delete(%{} = cloudflarednsrecord) do
-    IO.puts "HANDLING DELETE"
+    Logger.info("Handling Delete")
     IO.inspect(cloudflarednsrecord)
 
     # Parse the cloudflarednsrecord into a DNS record
     record = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.delete_record(record) do
+      Logger.info("Added or updated record: cf=#{Utils.map_to_string(cf)}")
       :ok
     else
-      err -> :err
+      err ->
+        Logger.error("Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}")
+        :error
     end
   end
 
@@ -179,17 +190,19 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @spec reconcile(map()) :: :ok | :error
   @impl Bonny.Controller
   def reconcile(%{} = cloudflarednsrecord) do
-    IO.puts "HANDLING RECONCILE"
-    IO.inspect(cloudflarednsrecord)
+    Logger.info("Handling Reconcile")
 
     # Parse the cloudflarednsrecord into a DNS record
     {:ok, record} = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       require IEx; IEx.pry
+      Logger.info("Added or updated record: cf=#{Utils.map_to_string(cf)}")
       :ok
     else
-      err -> :err
+      err ->
+        Logger.error("Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}")
+        :error
     end
   end
 
@@ -221,7 +234,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #       "serviceName" => "Howdy",
   #       "hostName" => "malan-staging",
   #       "domain" => "ameelio.xyz",
-  #       "zone_id" => "abcdefg"
+  #       "zoneId" => "abcdefg"
   #     }
   #   }
   #
@@ -229,32 +242,34 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp crd_to_cloudflare_record(%{
          "metadata" => %{"name" => _name},
          "spec" => %{
-           "namespace" => ns,
-           "serviceName" => name,
-           "hostName" => hostname,
-           "domain" => domain,
-           "zone_id" => zone_id
+           "namespace" => _ns,
+           "serviceName" => _service_name,
+           "hostName" => _hostname,
+           "domain" => _domain,
+           "zoneId" => _zone_id
          }
        }) do
-
+    Logger.debug("crd_to_cloudflare_record: (todo addme)")
   end
 
   defp parse(%{
          "metadata" => %{"name" => _name},
          "spec" => %{
            "namespace" => ns,
-           "serviceName" => name,
+           "serviceName" => service_name,
            "hostName" => hostname,
            "domain" => domain,
-           "zone_id" => zone_id
+           "zoneId" => zone_id
          }
        }) do
-    with {:ok, service} <- get_service(ns, name),
+         Logger.debug("Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'")
+
+    with {:ok, service} <- get_service(ns, service_name),
          {:ok, ip} <- parse_svc_ip(service),
          {:ok, _} <- is_ipv4?(ip),
          {:ok, _} <- validate_hostname(hostname),
-         {:ok, _} <- validate_domain(domain),
-         {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, ip) do
+         {:ok, _} <- validate_domain(zone_id, domain),
+         {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip) do
       {:ok, cfar}
     else
       {:error, :not_found} -> nil
@@ -262,6 +277,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:error, err} -> err
       err -> {:error, err}
     end
+  end
+
+  defp parse(record) do
+    Logger.error("parse()/1 invoked with unhandled argument structure.  Make sure the cloudlfarednsrecord object you created in k8s has the expected structure:  #{Utils.map_to_string(record)}")
+    {:error, :unhandled_structure}
   end
 
   defp is_ipv4?(ip) do
@@ -278,15 +298,19 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
           %{"ip" => ip}
         ]
       }
-    }
+    } = status
   }) do
+    Logger.debug("parse_svc_ip: status='#{Utils.map_to_string(status)}'")
     {:ok, ip}
   end
 
-  defp assemble_cf_a_record(zone_id, hostname, ip) do
+  defp assemble_cf_a_record(zone_id, hostname, domain, ip) do
+    Logger.debug("assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}'")
+
     cfar = %DnsRecord{
       zone_id: zone_id,
       hostname: hostname,
+      zone_name: domain,
       # ip: List.first(service.status.loadBalancer.ingress).ip
       ip: ip
     }
@@ -310,14 +334,18 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     #     {:ok, result} <- K8s.Client.run(conn, operation) do
     #  {:ok, result}
 
+    Logger.debug("Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'")
+
     #with {:ok, conn} <- K8s.Conn.from_service_account(),
-    with conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
+    with _conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
          operation <- K8s.Client.get(svc),
          #{:ok, result} <- K8s.Client.run(conn, operation) do
          {:ok, result} <- K8s.Client.run(operation, :default) do
+      Logger.info("Retrieved Service object from k8s: #{Utils.map_to_string(result)}")
       {:ok, result}
     else
       err -> 
+        Logger.error("Error retrieving Service object from k8s: #{err}")
         require IEx; IEx.pry
         {:error, err}
       # {:error, :not_found} -> 
@@ -329,12 +357,14 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   defp validate_hostname(hostname) do
+    Logger.debug("validate_hostname: hostname='#{hostname}'")
     # TODO
     {:ok, true}
   end
 
-  defp validate_domain(domain) do
-    # TODO
+  defp validate_domain(zone_id, domain) do
+    Logger.debug("validate_domain: zone_id='#{zone_id}' domain='#{domain}'")
+    # TODO: make sure that the `zone_name` for the `zone_id` matches `domain`
     {:ok, true}
   end
 end

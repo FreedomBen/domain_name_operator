@@ -27,4 +27,8 @@ config :bonny,
     requests: %{cpu: "200m", memory: "200Mi"}
   }
 
+config :logger, :console,
+ format: "$time $metadata[$level] $message\n",
+ metadata: [:error_code, :file]
+
 import_config "#{config_env()}.exs"
