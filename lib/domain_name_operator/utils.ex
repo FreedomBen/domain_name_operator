@@ -139,7 +139,7 @@ defmodule DomainNameOperator.Utils do
   end
 end
 
-defmodule Malan.Utils.FromEnv do
+defmodule DomainNameOperator.Utils.FromEnv do
   def log_str(env, :mfa), do: "[#{mfa_str(env)}]"
   def log_str(env, :func_only), do: "[#{func_str(env)}]"
   def log_str(env), do: log_str(env, :mfa)

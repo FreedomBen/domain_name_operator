@@ -56,7 +56,7 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   def create_a_record(hostname, ip) do
-    Logger.debug("create_a_record: hostname='#{hostname}' ip='#{ip}'")
+    Logger.debug("[create_a_record]: hostname='#{hostname}' ip='#{ip}'")
 
     case CloudflareApi.DnsRecords.create(client(), zone_id(), hostname, ip) do
       {:ok, retval} ->
@@ -66,8 +66,6 @@ defmodule DomainNameOperator.CloudflareOps do
       {:error, errs} ->
         Logger.error("[create_a_records/2]: error - #{Utils.to_string(errs)}")
         {:error, errs}
-
-      _ -> "hi"
     end
   end
 
@@ -93,11 +91,20 @@ defmodule DomainNameOperator.CloudflareOps do
     prev_recs = get_a_records(record.hostname, record.zone_name)
     Logger.info("[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare: " <> Utils.to_string(prev_recs))
 
-    # record exists yet?  If record does not exist, create one and delete others for this hostname
-    unless Enum.any?(prev_recs, fn r -> r.hostname == record.hostname && r.content == record.ip end) do
-      create_a_record(record.hostname, record.ip)
-      Enum.each(prev_recs, fn r -> delete_record(r) end)
+    cond do
+      record_exists?(prev_recs, record) ->
+        Logger.info(Utils.FromEnv.mfa_str(__ENV__) <> ": Entry already exists for '" <> record.hostname <> "' for ip '" <> record.ip <> "':  record: " <> Utils.to_string(record))
+        {:ok, record}
+      
+      true ->
+        Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> ": No entry exists for '" <> record.hostname <> "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record))
+        create_a_record(record.hostname, record.ip)
+        delete_records(prev_recs)
     end
+  end
+
+  def delete_records(records) do
+    Enum.each(records, fn r -> delete_record(r) end)
   end
 
   def delete_record(record) do
@@ -107,6 +114,6 @@ defmodule DomainNameOperator.CloudflareOps do
 
   defp record_exists?(recs, record) do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
-    # TODO
+    Enum.any?(recs, fn r -> r.hostname == record.hostname && r.content == record.ip end)
   end
 end
