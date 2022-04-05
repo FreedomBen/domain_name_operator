@@ -1,5 +1,4 @@
 defmodule DomainNameOperator.CloudflareOps do
-
   require Logger
   alias DomainNameOperator.Utils
 
@@ -23,9 +22,8 @@ defmodule DomainNameOperator.CloudflareOps do
       {:ok, records} ->
         records
 
-      err -> 
+      err ->
         Logger.error("[get_a_records/0 all]: error - #{Utils.to_string(err)}")
-        require IEx; IEx.pry
         []
     end
   end
@@ -60,7 +58,10 @@ defmodule DomainNameOperator.CloudflareOps do
 
     case CloudflareApi.DnsRecords.create(client(), zone_id(), hostname, ip) do
       {:ok, retval} ->
-        Logger.info("[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}")
+        Logger.info(
+          "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
+        )
+
         {:ok, retval}
 
       {:error, errs} ->
@@ -74,9 +75,7 @@ defmodule DomainNameOperator.CloudflareOps do
 
     with {:ok, records} <- get_a_records(host, domain) do
       records
-      |> Enum.each(
-          fn r -> CloudflareApi.DnsRecords.delete(client(), zone_id(), r.id)
-        end)
+      |> Enum.each(fn r -> CloudflareApi.DnsRecords.delete(client(), zone_id(), r.id) end)
     end
   end
 
@@ -89,15 +88,31 @@ defmodule DomainNameOperator.CloudflareOps do
     # First create new record, then delete old record
 
     prev_recs = get_a_records(record.hostname, record.zone_name)
-    Logger.info("[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare: " <> Utils.to_string(prev_recs))
+
+    Logger.info(
+      "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare: " <>
+        Utils.to_string(prev_recs)
+    )
 
     cond do
       record_exists?(prev_recs, record) ->
-        Logger.info(Utils.FromEnv.mfa_str(__ENV__) <> ": Entry already exists for '" <> record.hostname <> "' for ip '" <> record.ip <> "':  record: " <> Utils.to_string(record))
+        Logger.info(
+          Utils.FromEnv.mfa_str(__ENV__) <>
+            ": Entry already exists for '" <>
+            record.hostname <>
+            "' for ip '" <> record.ip <> "':  record: " <> Utils.to_string(record)
+        )
+
         {:ok, record}
-      
+
       true ->
-        Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> ": No entry exists for '" <> record.hostname <> "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record))
+        Logger.debug(
+          Utils.FromEnv.mfa_str(__ENV__) <>
+            ": No entry exists for '" <>
+            record.hostname <>
+            "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
+        )
+
         create_a_record(record.hostname, record.ip)
         delete_records(prev_recs)
     end

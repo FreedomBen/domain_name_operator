@@ -29,6 +29,8 @@ config :bonny,
 
 config :logger, :console,
  format: "$time $metadata[$level] $message\n",
- metadata: [:error_code, :file]
+ # metadata: [:error_code, :file],
+ metadata: [:error_code],
+ color: [enabled: true]
 
 import_config "#{config_env()}.exs"
