@@ -400,7 +400,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
     Logger.debug(
       Utils.FromEnv.mfa_str(__ENV__) <>
-        "Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'"
+        ":  Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'"
     )
 
     #with {:ok, conn} <- K8s.Conn.from_service_account(),
@@ -410,14 +410,14 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
          {:ok, result} <- K8s.Client.run(operation, :default) do
       Logger.info(
         Utils.FromEnv.mfa_str(__ENV__) <>
-          "Retrieved Service object from k8s: #{Utils.map_to_string(result)}"
+          ": Retrieved Service object from k8s: #{Utils.map_to_string(result)}"
       )
 
       {:ok, result}
     else
       err ->
         Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <> "Error retrieving Service object from k8s: #{err}"
+          Utils.FromEnv.mfa_str(__ENV__) <> ": Error retrieving Service object from k8s: #{err}"
         )
 
         {:error, err}

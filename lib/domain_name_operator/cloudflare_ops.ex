@@ -7,18 +7,18 @@ defmodule DomainNameOperator.CloudflareOps do
     |> CloudflareApi.new()
   end
 
-  def zone_id do
-    Application.fetch_env!(:domain_name_operator, :cloudflare_zone_id)
+  # def zone_id do
+  #   Application.fetch_env!(:domain_name_operator, :cloudflare_zone_id)
+  # end
+
+  def record_present?(zone_id, hostname) do
+    CloudflareApi.DnsRecords.hostname_exists?(client(), zone_id, hostname)
   end
 
-  def record_present?(hostname) do
-    CloudflareApi.DnsRecords.hostname_exists?(client(), zone_id(), hostname)
-  end
+  def get_a_records(zone_id) do
+    Logger.debug("[get_a_records]: all - zone_id='#{zone_id}'")
 
-  def get_a_records do
-    Logger.debug("get_a_records: all")
-
-    case CloudflareApi.DnsRecords.list(client(), zone_id()) do
+    case CloudflareApi.DnsRecords.list(client(), zone_id) do
       {:ok, records} ->
         records
 
@@ -28,10 +28,10 @@ defmodule DomainNameOperator.CloudflareOps do
     end
   end
 
-  def get_a_records(host, domain) do
-    Logger.debug("get_a_records: host='#{host}', domain='#{domain}'")
+  def get_a_records(zone_id, host, domain) do
+    Logger.debug("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
 
-    case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id(), host, domain) do
+    case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id, host, domain) do
       {:ok, records} ->
         records
 
@@ -42,21 +42,20 @@ defmodule DomainNameOperator.CloudflareOps do
     end
   end
 
-  def relevant_a_records(host, domain) do
-    Logger.debug("relevant_a_records: host='#{host}' domain='#{domain}'")
+  def relevant_a_records(zone_id, host, domain) do
+    Logger.debug("relevant_a_records: zone_id='#{zone_id}' host='#{host}' domain='#{domain}'")
 
-    host
-    |> get_a_records(domain)
+    get_a_records(zone_id, host, domain)
     |> Map.get("status")
     |> Map.get("addresses")
     |> Enum.filter(fn a -> a["type"] == "ExternalIP" end)
     |> List.flatten()
   end
 
-  def create_a_record(hostname, ip) do
+  def create_a_record(zone_id, hostname, ip) do
     Logger.debug("[create_a_record]: hostname='#{hostname}' ip='#{ip}'")
 
-    case CloudflareApi.DnsRecords.create(client(), zone_id(), hostname, ip) do
+    case CloudflareApi.DnsRecords.create(client(), zone_id, hostname, ip) do
       {:ok, retval} ->
         Logger.info(
           "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
@@ -70,12 +69,12 @@ defmodule DomainNameOperator.CloudflareOps do
     end
   end
 
-  def remove_a_record(host, domain) do
+  def remove_a_record(zone_id, host, domain) do
     Logger.debug("[remove_a_record]: host='#{host}', domain='#{domain}'")
 
-    with {:ok, records} <- get_a_records(host, domain) do
+    with {:ok, records} <- get_a_records(zone_id, host, domain) do
       records
-      |> Enum.each(fn r -> CloudflareApi.DnsRecords.delete(client(), zone_id(), r.id) end)
+      |> Enum.each(fn r -> CloudflareApi.DnsRecords.delete(client(), zone_id, r.id) end)
     end
   end
 
@@ -87,7 +86,7 @@ defmodule DomainNameOperator.CloudflareOps do
     # record will exist for any given hostname
     # First create new record, then delete old record
 
-    prev_recs = get_a_records(record.hostname, record.zone_name)
+    prev_recs = get_a_records(record.zone_id, record.hostname, record.zone_name)
 
     Logger.info(
       "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare: " <>
@@ -113,7 +112,7 @@ defmodule DomainNameOperator.CloudflareOps do
             "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
         )
 
-        create_a_record(record.hostname, record.ip)
+        create_a_record(record.zone_id, record.hostname, record.ip)
         delete_records(prev_recs)
     end
   end
@@ -124,11 +123,13 @@ defmodule DomainNameOperator.CloudflareOps do
 
   def delete_record(record) do
     Logger.debug("[delete_record]: record='#{Utils.to_string(record)}'")
-    remove_a_record(record.hostname, record.zone_name)
+    remove_a_record(record.zone_id, record.hostname, record.zone_name)
   end
 
   defp record_exists?(recs, record) do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
-    Enum.any?(recs, fn r -> r.hostname == record.hostname && r.content == record.ip end)
+    Enum.any?(recs, fn r ->
+      r.zone_id == record.zone_id && r.hostname == record.hostname && r.content == record.ip
+    end)
   end
 end
