@@ -12,11 +12,12 @@ defmodule DomainNameOperator.CloudflareOps do
   # end
 
   def record_present?(zone_id, hostname) do
+    Logger.notice("[record_present?]:  zone_id='#{zone_id}', hostname='#{hostname}'")
     CloudflareApi.DnsRecords.hostname_exists?(client(), zone_id, hostname)
   end
 
   def get_a_records(zone_id) do
-    Logger.debug("[get_a_records]: all - zone_id='#{zone_id}'")
+    Logger.notice("[get_a_records]: all - zone_id='#{zone_id}'")
 
     case CloudflareApi.DnsRecords.list(client(), zone_id) do
       {:ok, records} ->
@@ -29,7 +30,7 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   def get_a_records(zone_id, host, domain) do
-    Logger.debug("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
+    Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
 
     case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id, host, domain) do
       {:ok, records} ->
@@ -53,7 +54,7 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   def create_a_record(zone_id, hostname, ip) do
-    Logger.debug("[create_a_record]: hostname='#{hostname}' ip='#{ip}'")
+    Logger.notice("[create_a_record]: hostname='#{hostname}' ip='#{ip}'")
 
     case CloudflareApi.DnsRecords.create(client(), zone_id, hostname, ip) do
       {:ok, retval} ->

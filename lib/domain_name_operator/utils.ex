@@ -161,10 +161,10 @@ defmodule DomainNameOperator.Utils.Logger do
   def alert(msg), do: Logger.alert(msg, ansi_color: LoggerColor.red())
   def critical(msg), do: Logger.critical(msg, ansi_color: LoggerColor.red())
   def error(msg), do: Logger.error(msg, ansi_color: LoggerColor.red())
-  def warning(msg), do: Logger.wwarning(msg, ansi_color: LoggerColor.yellow())
-  def notice(msg), do: Logger.notice(msg, ansi_color: LoggerColor.cyan())
+  def warning(msg), do: Logger.warning(msg, ansi_color: LoggerColor.yellow())
+  def notice(msg), do: Logger.notice(msg, ansi_color: LoggerColor.yellow())
   def info(msg), do: Logger.info(msg, ansi_color: LoggerColor.green())
-  def debug(msg), do: Logger.debug(msg, ansi_color: LoggerColor.blue())
+  def debug(msg), do: Logger.debug(msg, ansi_color: LoggerColor.cyan())
 end
 
 defmodule DomainNameOperator.Utils.LoggerColor do
