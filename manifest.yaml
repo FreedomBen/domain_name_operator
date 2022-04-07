@@ -36,6 +36,8 @@ spec:
                   type: string
                 zoneId:
                   type: string
+                proxiable:
+                  type: boolean
       additionalPrinterColumns: []
 
 ---
