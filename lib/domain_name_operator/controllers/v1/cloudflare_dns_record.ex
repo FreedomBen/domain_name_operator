@@ -100,7 +100,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   alias CloudflareApi.DnsRecord
   alias DomainNameOperator.{Utils, CloudflareOps}
 
-  require Logger
+  alias DomainNameOperator.Utils.Logger
 
   @group "domain-name-operator.tamx.org"
   @version "v1"

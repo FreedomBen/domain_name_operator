@@ -1,5 +1,5 @@
 defmodule DomainNameOperator.CloudflareOps do
-  require Logger
+  alias DomainNameOperator.Utils.Logger
   alias DomainNameOperator.Utils
 
   def client do
@@ -57,7 +57,7 @@ defmodule DomainNameOperator.CloudflareOps do
 
     case CloudflareApi.DnsRecords.create(client(), zone_id, hostname, ip) do
       {:ok, retval} ->
-        Logger.info(
+        Logger.notice(
           "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
         )
 
@@ -70,7 +70,7 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   def remove_a_record(zone_id, host, domain) do
-    Logger.debug("[remove_a_record]: host='#{host}', domain='#{domain}'")
+    Logger.warning("[remove_a_record]: host='#{host}', domain='#{domain}'")
 
     with {:ok, records} <- get_a_records(zone_id, host, domain) do
       records
@@ -131,7 +131,7 @@ defmodule DomainNameOperator.CloudflareOps do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
 
     Enum.any?(recs, fn r ->
-      r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip
+      r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip && r.proxied == record.proxied
     end)
   end
 end

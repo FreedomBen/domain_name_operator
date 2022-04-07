@@ -151,3 +151,28 @@ defmodule DomainNameOperator.Utils.FromEnv do
 
   def mod_str(env), do: Kernel.to_string(env.module)
 end
+
+defmodule DomainNameOperator.Utils.Logger do
+  alias DomainNameOperator.Utils.LoggerColor
+
+  require Logger
+
+  def emergency(msg), do: Logger.emergency(msg, ansi_color: LoggerColor.red())
+  def alert(msg), do: Logger.alert(msg, ansi_color: LoggerColor.red())
+  def critical(msg), do: Logger.critical(msg, ansi_color: LoggerColor.red())
+  def error(msg), do: Logger.error(msg, ansi_color: LoggerColor.red())
+  def warning(msg), do: Logger.wwarning(msg, ansi_color: LoggerColor.yellow())
+  def notice(msg), do: Logger.notice(msg, ansi_color: LoggerColor.cyan())
+  def info(msg), do: Logger.info(msg, ansi_color: LoggerColor.green())
+  def debug(msg), do: Logger.debug(msg, ansi_color: LoggerColor.blue())
+end
+
+defmodule DomainNameOperator.Utils.LoggerColor do
+  def green, do: :green
+  def black, do: :black
+  def red, do: :red
+  def yellow, do: :yellow
+  def blue, do: :blue
+  def cyan, do: :cyan
+  def white, do: :white
+end
