@@ -89,7 +89,8 @@ defmodule DomainNameOperator.CloudflareOps do
     prev_recs = get_a_records(record.zone_id, record.hostname, record.zone_name)
 
     Logger.info(
-      "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare: " <>
+      "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
+      "zone_id='#{record.zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}': " <>
         Utils.to_string(prev_recs)
     )
 
@@ -128,8 +129,9 @@ defmodule DomainNameOperator.CloudflareOps do
 
   defp record_exists?(recs, record) do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
+
     Enum.any?(recs, fn r ->
-      r.zone_id == record.zone_id && r.hostname == record.hostname && r.content == record.ip
+      r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip
     end)
   end
 end
