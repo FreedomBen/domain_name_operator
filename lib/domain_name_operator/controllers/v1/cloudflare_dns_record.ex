@@ -121,7 +121,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @doc """
   Handles an `ADDED` event
   """
-  @spec add(map()) :: :ok | :error
+  @spec add(map()) :: :ok | {:ok, any()} | {:error, any()}
   @impl Bonny.Controller
   def add(%{} = cloudflarednsrecord) do
     Logger.info(
@@ -153,7 +153,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @doc """
   Handles a `MODIFIED` event
   """
-  @spec modify(map()) :: :ok | :error
+  @spec modify(map()) :: :ok | {:ok, any()} | {:error, any()}
   @impl Bonny.Controller
   def modify(%{} = cloudflarednsrecord) do
     Logger.info(
@@ -189,7 +189,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @doc """
   Handles a `DELETED` event
   """
-  @spec delete(map()) :: :ok | :error
+  @spec delete(map()) :: :ok | {:ok, any()} | {:error, any()}
   @impl Bonny.Controller
   def delete(%{} = cloudflarednsrecord) do
     Logger.info(
@@ -225,7 +225,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @doc """
   Called periodically for each existing CustomResource to allow for reconciliation.
   """
-  @spec reconcile(map()) :: :ok | :error
+  @spec reconcile(map()) :: :ok | {:ok, any()} | {:error, any()}
   @impl Bonny.Controller
   def reconcile(%{} = cloudflarednsrecord) do
     Logger.info(
@@ -241,18 +241,18 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> "Added or updated record: cf=#{Utils.map_to_string(cf)}"
+        Utils.FromEnv.mfa_str(__ENV__) <> ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
       )
 
-      :ok
+      {:ok, record}
     else
       err ->
         Logger.error(
           Utils.FromEnv.mfa_str(__ENV__) <>
-            "Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
+            ": Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
         )
 
-        :error
+        {:error, err}
     end
   end
 
@@ -299,7 +299,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "zoneId" => _zone_id
          }
        }) do
-    Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> "crd_to_cloudflare_record: (todo addme)")
+    Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> ": crd_to_cloudflare_record: (todo addme)")
   end
 
   defp parse(%{
@@ -314,7 +314,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
        }) do
     Logger.debug(
       Utils.FromEnv.mfa_str(__ENV__) <>
-        "Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
+        ": Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
     )
 
     with {:ok, hostname, domain} <- validate_hostname(hostname, domain),
@@ -335,7 +335,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp parse(record) do
     Logger.error(
       Utils.FromEnv.mfa_str(__ENV__) <>
-        "parse()/1 invoked with unhandled argument structure.  Make sure the cloudlfarednsrecord object you created in k8s has the expected structure:  #{Utils.map_to_string(record)}"
+        ": parse()/1 invoked with unhandled argument structure.  Make sure the cloudlfarednsrecord object you created in k8s has the expected structure:  #{Utils.map_to_string(record)}"
     )
 
     {:error, :unhandled_structure}
@@ -359,7 +359,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            } = status
        }) do
     Logger.debug(
-      Utils.FromEnv.mfa_str(__ENV__) <> "parse_svc_ip: status='#{Utils.map_to_string(status)}'"
+      Utils.FromEnv.mfa_str(__ENV__) <> ": parse_svc_ip: status='#{Utils.map_to_string(status)}'"
     )
 
     {:ok, ip}
@@ -368,7 +368,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp assemble_cf_a_record(zone_id, hostname, domain, ip) do
     Logger.debug(
       Utils.FromEnv.mfa_str(__ENV__) <>
-        "assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}'"
+        ": assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}'"
     )
 
     cfar = %DnsRecord{
