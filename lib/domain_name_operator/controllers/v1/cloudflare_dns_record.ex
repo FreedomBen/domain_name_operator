@@ -90,7 +90,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #       "serviceName" => "Howdy",
   #       "hostName" => "malan-staging",
   #       "domain" => "ameelio.xyz",
-  #       "zoneId" => "abcdefg"
+  #       "zoneId" => "abcdefg",
+  #       "proxied" => true
   #     }
   #   }
   #
@@ -125,28 +126,30 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   @impl Bonny.Controller
   def add(%{} = cloudflarednsrecord) do
     Logger.info(
-      IO.ANSI.format([:green, Utils.FromEnv.mfa_str(__ENV__) <> " --- Handling Add --- ", :reset])
+      IO.ANSI.format([
+        :green,
+        Utils.FromEnv.mfa_str(__ENV__) <> " --- Handling Add --- ",
+        :reset
+      ])
     )
 
-    IO.inspect(cloudflarednsrecord)
-
     # Parse the cloudflarednsrecord into a DNS record
-    record = parse(cloudflarednsrecord)
+    {:ok, record} = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> "Added or updated record: cf=#{Utils.map_to_string(cf)}"
+        Utils.FromEnv.mfa_str(__ENV__) <> ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
       )
 
-      :ok
+      {:ok, record}
     else
       err ->
         Logger.error(
           Utils.FromEnv.mfa_str(__ENV__) <>
-            "Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
+            ": Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
         )
 
-        :error
+        {:error, err}
     end
   end
 
@@ -159,30 +162,28 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     Logger.info(
       IO.ANSI.format([
         :green,
-        Utils.FromEnv.mfa_str(__ENV__) <> " --- Handling Modify--- ",
+        Utils.FromEnv.mfa_str(__ENV__) <> " --- Handling Modify --- ",
         :reset
       ])
     )
 
-    IO.inspect(cloudflarednsrecord)
-
     # Parse the cloudflarednsrecord into a DNS record
-    record = parse(cloudflarednsrecord)
+    {:ok, record} = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> "Added or updated record: cf=#{Utils.map_to_string(cf)}"
+        Utils.FromEnv.mfa_str(__ENV__) <> ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
       )
 
-      :ok
+      {:ok, record}
     else
       err ->
         Logger.error(
           Utils.FromEnv.mfa_str(__ENV__) <>
-            "Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
+            ": Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
         )
 
-        :error
+        {:error, err}
     end
   end
 
@@ -200,25 +201,23 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       ])
     )
 
-    IO.inspect(cloudflarednsrecord)
-
     # Parse the cloudflarednsrecord into a DNS record
-    record = parse(cloudflarednsrecord)
+    {:ok, record} = parse(cloudflarednsrecord)
 
     with {:ok, cf} <- CloudflareOps.delete_record(record) do
       Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> "Added or updated record: cf=#{Utils.map_to_string(cf)}"
+        Utils.FromEnv.mfa_str(__ENV__) <> ": Deleted record: cf=#{Utils.map_to_string(cf)}"
       )
 
-      :ok
+      {:ok, record}
     else
       err ->
         Logger.error(
           Utils.FromEnv.mfa_str(__ENV__) <>
-            "Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
+            ": Error deleting record: err='#{err}' record=#{Utils.map_to_string(record)}"
         )
 
-        :error
+        {:error, err}
     end
   end
 
@@ -284,7 +283,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #       "serviceName" => "Howdy",
   #       "hostName" => "malan-staging",
   #       "domain" => "ameelio.xyz",
-  #       "zoneId" => "abcdefg"
+  #       "zoneId" => "abcdefg",
+  #       "proxied" => true
   #     }
   #   }
   #
