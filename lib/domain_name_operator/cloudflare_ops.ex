@@ -7,6 +7,8 @@ defmodule DomainNameOperator.CloudflareOps do
     |> CloudflareApi.new()
   end
 
+  # TODO:  Add ability to have a default zone ID since some users creating dns
+  # records won't be able to get the zone ID
   # def zone_id do
   #   Application.fetch_env!(:domain_name_operator, :cloudflare_zone_id)
   # end
@@ -44,7 +46,7 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   def relevant_a_records(zone_id, host, domain) do
-    Logger.debug("relevant_a_records: zone_id='#{zone_id}' host='#{host}' domain='#{domain}'")
+    Logger.debug("[relevant_a_records]: zone_id='#{zone_id}' host='#{host}' domain='#{domain}'")
 
     get_a_records(zone_id, host, domain)
     |> Map.get("status")
@@ -70,15 +72,6 @@ defmodule DomainNameOperator.CloudflareOps do
     end
   end
 
-  def remove_a_record(zone_id, host, domain) do
-    Logger.warning("[remove_a_record]: host='#{host}', domain='#{domain}'")
-
-    with {:ok, records} <- get_a_records(zone_id, host, domain) do
-      records
-      |> Enum.each(fn r -> CloudflareApi.DnsRecords.delete(client(), zone_id, r.id) end)
-    end
-  end
-
   # TODO:  This should be tested thoroughly with 0, 1, n pre-existing records
   def add_or_update_record(record) do
     Logger.debug("[add_or_update_record]: record='#{Utils.to_string(record)}'")
@@ -91,7 +84,7 @@ defmodule DomainNameOperator.CloudflareOps do
 
     Logger.info(
       "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
-      "zone_id='#{record.zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}': " <>
+        "zone_id='#{record.zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}': " <>
         Utils.to_string(prev_recs)
     )
 
@@ -114,25 +107,105 @@ defmodule DomainNameOperator.CloudflareOps do
             "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
         )
 
-        create_a_record(record.zone_id, record.hostname, record.ip)
-        delete_records(prev_recs)
+        with {:ok, retval} <- create_a_record(record.zone_id, record.hostname, record.ip),
+             :ok <- delete_records(prev_recs) do
+          {:ok, retval}
+        else
+          {:error, error} -> {:error, error}
+          :error -> {:error, :delete_records}
+        end
     end
   end
 
-  def delete_records(records) do
-    Enum.each(records, fn r -> delete_record(r) end)
+  @doc ~S"""
+  Deletes the specified record.
+
+  If the record does *not* have an ID set, then prior to deletion the ID will
+  be retrieved through the Cloudflare API.  If more than one record matches, then
+  it is ambiguous which record to delete.  To control this behavior, set
+  `multiple_match_behavior` to your preference.  :log_error will log the error and
+  exit.  :delete_all_matching will delete all of the matching records.  :log_error
+  is the default
+  """
+  def delete_record(record, multiple_match_behavior \\ :log_error)
+
+  def delete_record(%CloudflareApi.DnsRecord{id: nil} = record, multiple_match_behavior) do
+    Logger.debug(
+      "[delete_record] id is nil [1]:  multiple_match_behavior='#{multiple_match_behavior}', record='#{Utils.to_string(record)}'"
+    )
+
+    recs = get_a_records(record.zone_id, record.hostname, record.zone_name)
+
+    Logger.debug(
+      "[delete_record] id is nil [2]: number of matching records is '#{Enum.count(recs)}' - recs='#{Utils.to_string(recs)}"
+    )
+
+    cond do
+      Enum.count(recs) == 1 ->
+        delete_record(List.first(recs), multiple_match_behavior)
+
+      multiple_match_behavior == :delete_all_matching ->
+        delete_records(recs, multiple_match_behavior)
+
+      true ->
+        Logger.error(
+          Utils.FromEnv.mfa_str(__ENV__) <>
+            ": When retrieving record ID for a record that we are deleting, got more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
+        )
+    end
   end
 
-  def delete_record(record) do
-    Logger.debug("[delete_record]: record='#{Utils.to_string(record)}'")
-    remove_a_record(record.zone_id, record.hostname, record.zone_name)
+  # Returns {:ok, _} | {:error, errs}
+  def delete_record(record, _multiple_match_behavior) do
+    Logger.warning("[delete_record]: record='#{Utils.to_string(record)}'")
+    CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id)
+  end
+
+  @doc ~S"""
+  Delete the specified record.
+
+  If the record does *not* have an ID set, then prior to deletion the ID will
+  be retrieved through the Cloudflare API.  If more than one record matches, then
+  it is ambiguous which record to delete.  To control this behavior, set
+  `multiple_match_behavior` to your preference.  :log_error will log the error and
+  exit.  :delete_all_matching will delete all of the matching records.  :log_error
+  is the default
+  """
+  def delete_records(records, multiple_match_behavior \\ :log_error) do
+    Logger.debug(
+      "[delete_records]: multiple_match_behavior='#{multiple_match_behavior}', records='#{Utils.to_string(records)}'"
+    )
+
+    success =
+      records
+      |> Enum.map(fn r -> delete_record(r, multiple_match_behavior) end)
+      |> Enum.all?(fn r ->
+        case r do
+          {:ok, _} -> true
+          {:error, _} -> false
+        end
+      end)
+
+    cond do
+      success -> :ok
+      true -> :error
+    end
+  end
+
+  def delete_records(zone_id, host, domain) do
+    Logger.warning("[delete_records]: zone_id='#{zone_id}', host='#{host}', domain='#{domain}'")
+
+    with {:ok, records} <- get_a_records(zone_id, host, domain) do
+      delete_records(records)
+    end
   end
 
   defp record_exists?(recs, record) do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
 
     Enum.any?(recs, fn r ->
-      r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip && r.proxied == record.proxied
+      r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip &&
+        r.proxied == record.proxied
     end)
   end
 end
