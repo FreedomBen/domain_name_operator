@@ -22,6 +22,8 @@ defmodule DomainNameOperator.MixProject do
   defp deps do
     [
       {:bonny, "~> 0.4"},
+      # {:bonny, "~> 0.5"},
+      # {:bonny, path: "/home/ben/gitclone/bonny2"},
       {:tesla, "~> 1.4"},
       {:hackney, "~> 1.17"},
       {:cloudflare_api, "~> 0.0"},
