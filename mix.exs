@@ -28,7 +28,8 @@ defmodule DomainNameOperator.MixProject do
       {:hackney, "~> 1.17"},
       {:cloudflare_api, "~> 0.0"},
       {:iptools, "~> 0.0"},
-      # {:k8s, "~> 1.1.3"}
+      # {:k8s, "~> 1.1.3"},
+      {:number, "~> 1.0.3"}
     ]
   end
 end

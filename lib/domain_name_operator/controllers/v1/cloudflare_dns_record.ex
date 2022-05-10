@@ -299,7 +299,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "zoneId" => _zone_id
          }
        }) do
-    Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> ": crd_to_cloudflare_record: (todo addme)")
+    Logger.debug(__ENV__, "crd_to_cloudflare_record: (todo addme)")
   end
 
   defp parse(%{
@@ -312,9 +312,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "zoneId" => zone_id
          }
        }) do
-    Logger.debug(
-      Utils.FromEnv.mfa_str(__ENV__) <>
-        ": Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
+    Logger.debug(__ENV__,
+        "Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
     )
 
     with {:ok, hostname, domain} <- validate_hostname(hostname, domain),
@@ -358,18 +357,13 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
              }
            } = status
        }) do
-    Logger.debug(
-      Utils.FromEnv.mfa_str(__ENV__) <> ": parse_svc_ip: status='#{Utils.map_to_string(status)}'"
-    )
+    Logger.debug(__ENV__, "parse_svc_ip: status='#{Utils.map_to_string(status)}'")
 
     {:ok, ip}
   end
 
   defp assemble_cf_a_record(zone_id, hostname, domain, ip) do
-    Logger.debug(
-      Utils.FromEnv.mfa_str(__ENV__) <>
-        ": assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}'"
-    )
+    Logger.debug(__ENV__, "assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}'")
 
     cfar = %DnsRecord{
       zone_id: zone_id,
@@ -398,10 +392,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     #     {:ok, result} <- K8s.Client.run(conn, operation) do
     #  {:ok, result}
 
-    Logger.debug(
-      Utils.FromEnv.mfa_str(__ENV__) <>
-        ":  Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'"
-    )
+    Logger.debug(__ENV__, "Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'")
 
     #with {:ok, conn} <- K8s.Conn.from_service_account(),
     with _conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
@@ -430,14 +421,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   defp validate_hostname(hostname, domain) do
-    Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> ": hostname='#{hostname}'")
+    Logger.debug(__ENV__, "hostname='#{hostname}'")
 
     cond do
       String.ends_with?(hostname, domain) ->
-        Logger.debug(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": hostname='#{hostname}' ends with domain='#{domain}' already.  Not changing"
-        )
+        Logger.debug(__ENV__, "hostname='#{hostname}' ends with domain='#{domain}' already.  Not changing")
 
         {:ok, hostname, domain}
 
@@ -454,7 +442,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   defp validate_domain(zone_id, domain) do
-    Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <> ": zone_id='#{zone_id}' domain='#{domain}'")
+    Logger.debug(__ENV__, ": zone_id='#{zone_id}' domain='#{domain}'")
     # TODO: make sure that the `zone_name` for the `zone_id` matches `domain`
     {:ok, true}
   end
