@@ -24,15 +24,6 @@ spec:
       - image: docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}
         name: domain-name-operator
         imagePullPolicy: Always
-        ports:
-        - containerPort: 4000
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /health_check/readiness
-            port: 4000
-          initialDelaySeconds: 5
-          periodSeconds: 2
         envFrom:
           - configMapRef:
               name: domain-name-operator-web-config
