@@ -14,7 +14,8 @@ spec:
     shortNames:
       - dns
       - cfdns
-  scope: Cluster
+  #scope: Cluster
+  scope: Namespaced
   versions:
     - name: v1
       served: true
