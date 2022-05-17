@@ -53,27 +53,3 @@ data:
   BIND_ADDR: '0.0.0.0'
   POOL_SIZE: '5'
   DB_POOL_SIZE: '5'
-
-# Service annotations for Digital Ocean
-# https://docs.digitalocean.com/products/kubernetes/how-to/configure-load-balancers/
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: domain-name-operator
-  name: domain-name-operator
-  namespace: domain-name-operator-prod
-  annotations:
-    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
-    service.beta.kubernetes.io/do-loadbalancer-size-slug: "lb-small" # or lb-medium|lb-large
-spec:
-  type: LoadBalancer
-  selector:
-    app: domain-name-operator
-  ports:
-    - name: http
-      protocol: TCP
-      port: 80
-      targetPort: 4000

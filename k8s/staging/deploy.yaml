@@ -54,24 +54,3 @@ data:
   POOL_SIZE: '3'
   DB_POOL_SIZE: '3'
   MAILGUN_DOMAIN: 'sandboxd0311bf768db4679945035aea547b6e7.mailgun.org'
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: domain-name-operator
-  name: domain-name-operator
-  namespace: domain-name-operator-staging
-  annotations:
-    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
-    service.beta.kubernetes.io/do-loadbalancer-size-slug: "lb-small" # or lb-medium|lb-large
-spec:
-  type: LoadBalancer
-  selector:
-    app: domain-name-operator
-  ports:
-    - name: http
-      protocol: TCP
-      port: 80
-      targetPort: 4000
