@@ -27,13 +27,15 @@ RUN mix release
 ##### Release Image #####
 #########################
 
-FROM alpine:3.10
+#FROM alpine:3.10
+FROM almalinux:8.5
 
-RUN apk add --update openssl ncurses
+#RUN apk add --update openssl ncurses
+RUN dnf install -y openssl ncurses
 
 WORKDIR /app
 COPY --from=builder /app/_build/prod/rel/domain_name_operator ./
-RUN chown -R nobody: /app
+#RUN chown -R nobody: /app
 
 ENTRYPOINT ["/app/bin/domain_name_operator"]
 CMD ["start"]

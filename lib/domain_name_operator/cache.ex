@@ -3,10 +3,12 @@ defmodule DomainNameOperator.Cache do
 
   alias DomainNameOperator.CacheEntry
 
+  alias DomainNameOperator.Utils.Logger
+
   @expire_seconds 180
 
   def start_link(_initial_value) do
-    IO.puts "STARTING THE LINK"
+    Logger.debug(__ENV__, "Starting Cache link")
     Agent.start_link(fn -> %{} end, name: __MODULE__)
   end
 

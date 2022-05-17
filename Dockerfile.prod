@@ -65,14 +65,11 @@ RUN mix deps.compile
 
 COPY --chown=docker:docker config /app/config
 COPY --chown=docker:docker scripts /app/scripts
-COPY --chown=docker:docker priv /app/priv
 COPY --chown=docker:docker lib /app/lib
 COPY --chown=docker:docker test /app/test
-COPY --chown=docker:docker .iex.exs /app
-COPY --chown=docker:docker .bashrc $USER_HOME
 
 RUN mix compile
 RUN mix release
 
-ENTRYPOINT ["/app/bin/domain_name_operator"]
+ENTRYPOINT ["/app/_build/prod/rel/domain_name_operator/bin/domain_name_operator"]
 CMD ["start"]
