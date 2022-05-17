@@ -1,0 +1,78 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: domain-name-operator
+  name: domain-name-operator
+  namespace: domain-name-operator-staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: domain-name-operator
+  template:
+    metadata:
+      labels:
+        app: domain-name-operator
+      namespace: domain-name-operator-staging
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - image: docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}
+        name: domain-name-operator
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4000
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health_check/readiness
+            port: 4000
+          initialDelaySeconds: 5
+          periodSeconds: 2
+        envFrom:
+          - configMapRef:
+              name: domain-name-operator-web-config
+          - secretRef:
+              name: domain-name-operator-deploy-secrets
+        securityContext:
+          allowPrivilegeEscalation: false
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: domain-name-operator
+  name: domain-name-operator-web-config
+  namespace: domain-name-operator-staging
+data:
+  BIND_ADDR: '0.0.0.0'
+  POOL_SIZE: '3'
+  DB_POOL_SIZE: '3'
+  MAILGUN_DOMAIN: 'sandboxd0311bf768db4679945035aea547b6e7.mailgun.org'
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: domain-name-operator
+  name: domain-name-operator
+  namespace: domain-name-operator-staging
+  annotations:
+    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
+    service.beta.kubernetes.io/do-loadbalancer-size-slug: "lb-small" # or lb-medium|lb-large
+spec:
+  type: LoadBalancer
+  selector:
+    app: domain-name-operator
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 4000
+      nodePort: 30000

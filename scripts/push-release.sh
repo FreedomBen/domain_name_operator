@@ -7,6 +7,6 @@ else
   echo "RELEASE_VERSION already set to '${RELEASE_VERSION}'"
 fi
 
-docker push "docker.io/freedomben/domain_name_operator:latest"
-docker push "docker.io/freedomben/domain_name_operator:${RELEASE_VERSION}"
+docker push "docker.io/freedomben/domain-name-operator:latest"
+docker push "docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}"
 

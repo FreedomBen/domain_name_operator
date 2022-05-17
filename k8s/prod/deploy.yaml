@@ -1,0 +1,80 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: domain-name-operator
+  name: domain-name-operator
+  namespace: domain-name-operator-prod
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: domain-name-operator
+  template:
+    metadata:
+      labels:
+        app: domain-name-operator
+      namespace: domain-name-operator-prod
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - image: docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}
+        name: domain-name-operator
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 4000
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health_check/readiness
+            port: 4000
+          initialDelaySeconds: 5
+          periodSeconds: 2
+        envFrom:
+          - configMapRef:
+              name: domain-name-operator-web-config
+          - secretRef:
+              name: domain-name-operator-deploy-secrets
+        securityContext:
+          allowPrivilegeEscalation: false
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: domain-name-operator
+  name: domain-name-operator-web-config
+  namespace: domain-name-operator-prod
+data:
+  BIND_ADDR: '0.0.0.0'
+  POOL_SIZE: '5'
+  DB_POOL_SIZE: '5'
+
+# Service annotations for Digital Ocean
+# https://docs.digitalocean.com/products/kubernetes/how-to/configure-load-balancers/
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: domain-name-operator
+  name: domain-name-operator
+  namespace: domain-name-operator-prod
+  annotations:
+    service.beta.kubernetes.io/do-loadbalancer-protocol: "http"
+    service.beta.kubernetes.io/do-loadbalancer-size-slug: "lb-small" # or lb-medium|lb-large
+spec:
+  type: LoadBalancer
+  selector:
+    app: domain-name-operator
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 4000
+      nodePort: 30000

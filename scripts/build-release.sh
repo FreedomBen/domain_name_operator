@@ -9,7 +9,7 @@ fi
 
 docker build \
   --file Dockerfile.prod \
-  --tag "docker.io/freedomben/domain_name_operator:${RELEASE_VERSION}" \
-  --tag "docker.io/freedomben/domain_name_operator:latest" \
+  --tag "docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}" \
+  --tag "docker.io/freedomben/domain-name-operator:latest" \
   .
 
