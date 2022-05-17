@@ -86,9 +86,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #       "uid" => "daa7e59b-0c56-11e9-bd27-025000000001"
   #     },
   #     "spec" => %{
-  #       "namespace" => "malan-staging",
+  #       "namespace" => "domain-name-operator-staging",
   #       "serviceName" => "Howdy",
-  #       "hostName" => "malan-staging",
+  #       "hostName" => "domain-name-operator-staging",
   #       "domain" => "ameelio.xyz",
   #       "zoneId" => "abcdefg",
   #       "proxied" => true
@@ -279,9 +279,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #       "uid" => "daa7e59b-0c56-11e9-bd27-025000000001"
   #     },
   #     "spec" => %{
-  #       "namespace" => "malan-staging",
+  #       "namespace" => "domain-name-operator-staging",
   #       "serviceName" => "Howdy",
-  #       "hostName" => "malan-staging",
+  #       "hostName" => "domain-name-operator-staging",
   #       "domain" => "ameelio.xyz",
   #       "zoneId" => "abcdefg",
   #       "proxied" => true

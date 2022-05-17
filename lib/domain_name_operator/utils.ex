@@ -284,7 +284,7 @@ defmodule DomainNameOperator.Utils do
       "someval"
       iex> DomainNameOperator.Utils.raise_if_nil!("somevar", nil)
       ** (DomainNameOperator.CantBeNil) variable 'somevar' was nil but cannot be
-          (malan 0.1.0) lib/malan/utils.ex:135: DomainNameOperator.Utils.raise_if_nil!/2
+          (domain_name_operator 0.1.0) lib/domain_name_operator/utils.ex:135: DomainNameOperator.Utils.raise_if_nil!/2
 
   """
   def raise_if_nil!(varname, value) do
@@ -306,7 +306,7 @@ defmodule DomainNameOperator.Utils do
       "someval"
       iex> DomainNameOperator.Utils.raise_if_nil!(nil)
       ** (DomainNameOperator.CantBeNil) variable 'somevar' was nil but cannot be
-          (malan 0.1.0) lib/malan/utils.ex:142: DomainNameOperator.Utils.raise_if_nil!/1
+          (domain_name_operator 0.1.0) lib/domain_name_operator/utils.ex:142: DomainNameOperator.Utils.raise_if_nil!/1
 
   """
   def raise_if_nil!(value) do
