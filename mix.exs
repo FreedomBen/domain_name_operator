@@ -14,6 +14,7 @@ defmodule DomainNameOperator.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
+      mod: {DomainNameOperator.Application, []},
       extra_applications: [:logger]
     ]
   end
@@ -26,7 +27,8 @@ defmodule DomainNameOperator.MixProject do
       # {:bonny, path: "/home/ben/gitclone/bonny2"},
       {:tesla, "~> 1.4"},
       {:hackney, "~> 1.17"},
-      {:cloudflare_api, "~> 0.0"},
+      # {:cloudflare_api, "~> 0.0"},
+      {:cloudflare_api, "~> 0.1"},
       {:iptools, "~> 0.0"},
       # {:k8s, "~> 1.1.3"},
       {:number, "~> 1.0.3"}

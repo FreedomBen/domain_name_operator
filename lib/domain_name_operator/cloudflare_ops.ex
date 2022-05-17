@@ -1,6 +1,6 @@
 defmodule DomainNameOperator.CloudflareOps do
   alias DomainNameOperator.Utils.Logger
-  alias DomainNameOperator.Utils
+  alias DomainNameOperator.{Utils, Cache}
 
   def client do
     Application.fetch_env!(:domain_name_operator, :cloudflare_api_token)
@@ -32,16 +32,26 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   def get_a_records(zone_id, host, domain) do
-    Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
+    case Cache.get_records(host) do
+      nil ->
+        Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
 
-    case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id, host, domain) do
-      {:ok, records} ->
+        case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id, host, domain) do
+          {:ok, records} ->
+            #Logger.info(__ENV__, "Adding records to cache")
+            Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
+            Cache.add_records(host, records)
+            records
+
+          err ->
+            Logger.error("[get_a_records/1 hostname]: error - #{Utils.to_string(err)}")
+            IO.inspect(err)
+            []
+        end
+
+      records ->
+        Logger.info(__ENV__, "Serving hostname '#{host}' records frmo cache")
         records
-
-      err ->
-        Logger.error("[get_a_records/1 hostname]: error - #{Utils.to_string(err)}")
-        IO.inspect(err)
-        []
     end
   end
 
@@ -75,6 +85,9 @@ defmodule DomainNameOperator.CloudflareOps do
   # TODO:  This should be tested thoroughly with 0, 1, n pre-existing records
   def add_or_update_record(record) do
     Logger.debug("[add_or_update_record]: record='#{Utils.to_string(record)}'")
+
+    # Logger.info(__ENV__, "Deleting cache for hostname #{record.hostname}")
+    # Cache.delete_records(record.hostname)
 
     # Check if record exists already. We are assuming that only one
     # record will exist for any given hostname
@@ -158,6 +171,10 @@ defmodule DomainNameOperator.CloudflareOps do
   # Returns {:ok, _} | {:error, errs}
   def delete_record(record, _multiple_match_behavior) do
     Logger.warning("[delete_record]: record='#{Utils.to_string(record)}'")
+
+    Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
+    Cache.delete_records(record.hostname)
+
     CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id)
   end
 
