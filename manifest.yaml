@@ -81,16 +81,16 @@ metadata:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-#kind: ClusterRoleBinding
-kind: RoleBinding
+kind: ClusterRoleBinding
+#kind: RoleBinding
 metadata:
   labels:
     k8s-app: domain-name-operator
   name: domain-name-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  #kind: ClusterRole
-  kind: Role
+  kind: ClusterRole
+  #kind: Role
   name: domain-name-operator
 subjects:
   - kind: ServiceAccount
