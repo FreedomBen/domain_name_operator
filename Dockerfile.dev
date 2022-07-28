@@ -71,5 +71,8 @@ COPY --chown=docker:docker test /app/test
 RUN mix compile
 RUN mix release
 
-ENTRYPOINT ["/app/_build/dev/rel/domain_name_operator/bin/domain_name_operator"]
-CMD ["start"]
+# ENTRYPOINT ["/app/_build/dev/rel/domain_name_operator/bin/domain_name_operator"]
+# CMD ["start"]
+
+ENTRYPOINT [ "tini", "--" ]
+CMD [ "/app/_build/dev/rel/domain_name_operator/bin/domain_name_operator", "start" ]
