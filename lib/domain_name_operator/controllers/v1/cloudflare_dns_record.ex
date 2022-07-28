@@ -386,6 +386,13 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       }
     }
 
+    #
+    # IMPORTANT:  We are essentially ignoring the settings in the config file
+    # that applies to k8s (not to bonny) because we couldn't get it working right.
+    # newer bonny updated k8s libs and the new one will be somewhat like what
+    # follows.  Suggest upgrading to new one and then getting the settings to work
+    # instead of trying to fix the old one.
+    #
     # New k8s version
     #with {:ok, conn} <- K8s.Conn.from_service_account(),
     #     operation <- K8s.Client.get(svc),
@@ -394,8 +401,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
     Logger.debug(__ENV__, "Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'")
 
-    #with {:ok, conn} <- K8s.Conn.from_service_account(),
-    with _conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
+    #with _conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
+    with _conn <- K8s.Conn.from_service_account(),
          operation <- K8s.Client.get(svc),
          #{:ok, result} <- K8s.Client.run(conn, operation) do
          {:ok, result} <- K8s.Client.run(operation, :default) do
