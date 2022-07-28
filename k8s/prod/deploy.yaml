@@ -1,4 +1,47 @@
 ---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  labels:
+    k8s-app: domain-name-operator
+  name: cloudflarednsrecords.domain-name-operator.tamx.org
+spec:
+  group: domain-name-operator.tamx.org
+  names:
+    kind: CloudflareDnsRecord
+    plural: cloudflarednsrecords
+    singular: cloudflarednsrecord
+    shortNames:
+      - dns
+      - cfdns
+  #scope: Cluster
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                namespace:
+                  type: string
+                serviceName:
+                  type: string
+                hostName:
+                  type: string
+                domain:
+                  type: string
+                zoneId:
+                  type: string
+                proxied:
+                  type: boolean
+      additionalPrinterColumns: []
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +50,7 @@ metadata:
   name: domain-name-operator
   namespace: domain-name-operator-prod
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: domain-name-operator
@@ -17,11 +60,13 @@ spec:
         app: domain-name-operator
       namespace: domain-name-operator-prod
     spec:
+      serviceAccountName: domain-name-operator
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
       containers:
-      - image: docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}
+      - image: docker.io/freedomben/domain-name-operator:1e5b67f196e07cdde556145b52816e3e8fa5c228
+      #- image: docker.io/freedomben/domain-name-operator:${RELEASE_VERSION}
         name: domain-name-operator
         imagePullPolicy: Always
         envFrom:
@@ -42,3 +87,55 @@ metadata:
   namespace: domain-name-operator-prod
 data:
   BIND_ADDR: '0.0.0.0'
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    k8s-app: domain-name-operator
+  name: domain-name-operator
+rules:
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - '*'
+  - apiGroups:
+      - domain-name-operator.tamx.org
+    resources:
+      - cloudflarednsrecords
+    verbs:
+      - '*'
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - '*'
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    k8s-app: domain-name-operator
+  name: domain-name-operator
+  namespace: domain-name-operator-prod
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    k8s-app: domain-name-operator
+  name: domain-name-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: domain-name-operator
+subjects:
+  - kind: ServiceAccount
+    name: domain-name-operator
+    namespace: domain-name-operator-prod
