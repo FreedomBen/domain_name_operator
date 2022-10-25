@@ -7,6 +7,7 @@ defmodule DomainNameOperator.MixProject do
       version: "0.1.0",
       elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
+      releases: releases(),
       deps: deps()
     ]
   end
@@ -37,6 +38,14 @@ defmodule DomainNameOperator.MixProject do
       # {:hackney, "~> 1.8"},
       # if you are using plug_cowboy
       # {:plug_cowboy, "~> 2.3"}
+    ]
+  end
+
+  defp releases do
+    [
+      domain_name_operator: [
+        applications: [bonny: :permanent]
+      ]
     ]
   end
 end

@@ -13,6 +13,7 @@ defmodule DomainNameOperator.Application do
       # Starts a worker by calling: DomainNameOperator.Worker.start_link(arg)
       # {DomainNameOperator.Worker, arg}
       {DomainNameOperator.Cache, []}
+      #{Bonny.Application.start, []}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
