@@ -31,7 +31,12 @@ defmodule DomainNameOperator.MixProject do
       {:cloudflare_api, "~> 0.1"},
       {:iptools, "~> 0.0"},
       # {:k8s, "~> 1.1.3"},
-      {:number, "~> 1.0.3"}
+      {:number, "~> 1.0.3"},
+      {:sentry, "~> 8.0"},
+      {:jason, "~> 1.1"},
+      #{:hackney, "~> 1.8"},
+      # if you are using plug_cowboy
+      #{:plug_cowboy, "~> 2.3"}
     ]
   end
 end
