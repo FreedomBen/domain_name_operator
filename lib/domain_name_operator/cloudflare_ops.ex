@@ -38,7 +38,7 @@ defmodule DomainNameOperator.CloudflareOps do
 
         case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id, host, domain) do
           {:ok, records} ->
-            #Logger.info(__ENV__, "Adding records to cache")
+            # Logger.info(__ENV__, "Adding records to cache")
             Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
             Cache.add_records(host, records)
             records
@@ -163,7 +163,7 @@ defmodule DomainNameOperator.CloudflareOps do
       true ->
         Logger.error(
           __ENV__,
-            ": When retrieving record ID for a record that we are deleting, got either zero or more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
+          ": When retrieving record ID for a record that we are deleting, got either zero or more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
         )
     end
   end

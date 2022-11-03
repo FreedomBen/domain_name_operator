@@ -44,4 +44,3 @@ defmodule DomainNameOperator.Cache do
     end
   end
 end
-
