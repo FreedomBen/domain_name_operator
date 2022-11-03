@@ -50,7 +50,7 @@ defmodule DomainNameOperator.CloudflareOps do
         end
 
       records ->
-        Logger.info(__ENV__, "Serving hostname '#{host}' records frmo cache")
+        Logger.info(__ENV__, "Serving hostname '#{host}' records from cache")
         records
     end
   end
