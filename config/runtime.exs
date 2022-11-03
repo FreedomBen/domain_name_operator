@@ -8,10 +8,10 @@ config :domain_name_operator,
 
 config :sentry,
   dsn: System.get_env("SENTRY_DSN"),
-  environment_name: Mix.env(),
+  environment_name: System.get_env("MIX_ENV") || "dev",
   enable_source_code_context: true,
   root_source_code_path: File.cwd!(),
   tags: %{
-    env: Mix.env()
+    env: System.get_env("MIX_ENV") || "dev"
   },
   included_environments: [:prod]
