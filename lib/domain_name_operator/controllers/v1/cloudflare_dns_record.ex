@@ -170,7 +170,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     # Parse the cloudflarednsrecord into a DNS record
     {:ok, record} = parse(cloudflarednsrecord)
 
-    with {:ok, cf} <- CloudflareOps.delete_record(record) do
+    with {:ok, record} <- parse(cloudflarednsrecord),
+         {:ok, cf} <- CloudflareOps.delete_record(record) do
       Logger.info(
         Utils.FromEnv.mfa_str(__ENV__) <> ": Deleted record: cf=#{Utils.map_to_string(cf)}"
       )
@@ -178,12 +179,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:ok, record}
     else
       err ->
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error deleting record: err='#{err}' record=#{Utils.map_to_string(record)}"
-        )
-
-        {:error, err}
+        Utils.Logger.error(__ENV__, "Error deleting record: err='#{err}' record=#{Utils.map_to_string(record)}")
+        handle_process_record_error(err, cloudflarednsrecord)
     end
   end
 
@@ -216,6 +213,17 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
       {:ok, record}
     else
+      {:error, :no_ip, %{namespace: namespace, name: name}} -> parse_record_error(:no_ip, namespace, name, cloudflarednsrecord)
+      {:error, :bad_ip} -> parse_record_error(:bad_ip, cloudflarednsrecord)
+      {:error, :service_not_found, %{namespace: namespace, name: name}} -> process_record_error(:service_not_found, namespace, name, cloudflarednsrecord)
+      {:error, err, %{namespace: namespace, name: name}} -> process_record_error(:service_general, err, namespace, name, cloudflarednsrecord)
+      {:error, err} -> process_record_error(err, cloudflarednsrecord)
+      err -> handle_process_record_error(err, cloudflarednsrecord)
+    end
+  end
+
+  def handle_process_record_error(cloudflarednsrecord, error) do
+    case error do
       {:error, :no_ip, %{namespace: namespace, name: name}} -> parse_record_error(:no_ip, namespace, name, cloudflarednsrecord)
       {:error, :bad_ip} -> parse_record_error(:bad_ip, cloudflarednsrecord)
       {:error, :service_not_found, %{namespace: namespace, name: name}} -> process_record_error(:service_not_found, namespace, name, cloudflarednsrecord)
