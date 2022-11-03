@@ -163,7 +163,7 @@ defmodule DomainNameOperator.CloudflareOps do
       true ->
         Logger.error(
           __ENV__,
-            ": When retrieving record ID for a record that we are deleting, got more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
+            ": When retrieving record ID for a record that we are deleting, got either zero or more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
         )
     end
   end

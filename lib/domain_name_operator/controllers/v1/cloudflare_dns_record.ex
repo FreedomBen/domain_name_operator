@@ -216,30 +216,54 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
       {:ok, record}
     else
-      {:error, :not_found} -> parse_record_error(:not_found, cloudflarednsrecord)
-      {:error, :no_ip} -> parse_record_error(:no_ip, cloudflarednsrecord)
+      {:error, :no_ip, %{namespace: namespace, name: name}} -> parse_record_error(:no_ip, namespace, name, cloudflarednsrecord)
       {:error, :bad_ip} -> parse_record_error(:bad_ip, cloudflarednsrecord)
+      {:error, :service_not_found, %{namespace: namespace, name: name}} -> process_record_error(:service_not_found, namespace, name, cloudflarednsrecord)
+      {:error, err, %{namespace: namespace, name: name}} -> process_record_error(:service_general, err, namespace, name, cloudflarednsrecord)
       {:error, err} -> process_record_error(err, cloudflarednsrecord)
       err -> process_record_error(err, cloudflarednsrecord)
     end
   end
 
-  def parse_record_error(error, cloudflarednsrecord) do
-    Logger.error(
-      Utils.FromEnv.mfa_str(__ENV__) <>
-        ": Error processing cloudflarednsrecord: error='#{Utils.to_string(error)}' cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
-    )
+  def process_record_error(:service_not_found, namespace, name, cloudflarednsrecord) do
+    msg = "Service '#{name}' was not found in namespace '#{namespace}'.  Could not get IP address needed to create DNS record"
+    Utils.Logger.error(__ENV__, "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}")
+    Sentry.capture_message(msg, extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord), service_namespace: namespace, service_name: name})
+    {:error, :service_not_found}
+  end
 
-    # Sentry.capture_message("custom_event_name", extra: %{extra: information})
-
-    {:error, error}
+  def process_record_error(:service_general, err, namespace, name, cloudflarednsrecord) do
+    msg = "Service '#{name}' in namespace '#{namespace}' had error '#{err}'"
+    Utils.Logger.error(__ENV__, "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}")
+    Sentry.capture_message(msg, extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord), service_namespace: namespace, service_name: name})
+    {:error, :service_general}
   end
 
   def process_record_error(error, cloudflarednsrecord) do
-    Logger.error(__ENV__, "Error '#{Utils.to_string(error)}' encountered processing cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
+    msg = "Encountered error '#{Utils.to_string(error)}' processing record."
+    Utils.Logger.error(__ENV__, "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}")
+    Sentry.capture_message(msg, extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)})
+    {:error, error}
+  end
 
-    # Sentry.capture_message("custom_event_name", extra: %{extra: information})
+  def parse_record_error(:no_ip, namespace, name, cloudflarednsrecord) do
+    msg = "Service '#{name}' in namespace '#{namespace}' has no IP address.  This can happen if the service is newly created and is still being provisioned by DO, but if it's been more than 5 to 10 minutes could mean there's an issue that needs invetigation.  was not found .  Could not get IP address needed to create DNS record"
+    Utils.Logger.error(__ENV__, "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}")
+    Sentry.capture_message(msg, extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)})
+    {:error, :no_ip}
+  end
 
+  def parse_record_error(:bad_ip, cloudflarednsrecord) do
+    msg = "Service has an invalid IP address!"
+    Utils.Logger.error(__ENV__, "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}")
+    Sentry.capture_message(msg, extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)})
+    {:error, :bad_ip}
+  end
+
+  def parse_record_error(error, cloudflarednsrecord) do
+    msg = ": Error processing cloudflarednsrecord: error='#{Utils.to_string(error)}'"
+    Utils.Logger.error(__ENV__, "#{msg} cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}")
+    Sentry.capture_message(msg, extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)})
     {:error, error}
   end
 
@@ -351,7 +375,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp parse_svc_ip(service) do
     Utils.Logger.warning(__ENV__, "Service object does not have an IP address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  Service='#{Utils.to_string(service)}'")
 
-    {:err, :no_ip}
+    {:err, :no_ip, %{namespace: service["metadata"]["namespace"], name: service["metadata"]["name"]}}
   end
 
   defp assemble_cf_a_record(zone_id, hostname, domain, ip) do
@@ -405,17 +429,17 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
       {:ok, result}
     else
+      {:error, :not_found} ->
+        # The specified service doesn't exist!  Tell user about error somehow and stop
+        Logger.error(
+          Utils.FromEnv.mfa_str(__ENV__) <> ": Error retrieving Service object from k8s.  It does not appear to exist.  Verify it is named '#{name}' and is in the namespace '#{namespace}': :service_not_found"
+        )
+        {:error, :service_not_found, %{namespace: namespace, name: name}}
       err ->
         Logger.error(
           Utils.FromEnv.mfa_str(__ENV__) <> ": Error retrieving Service object from k8s: #{err}"
         )
-
-        {:error, err}
-      # {:error, :not_found} -> 
-        # The specified service doesn't exist!  Tell user about error somehow and stop
-        # {:error, err}
-      # {:error, err} -> {:error, err}
-      # err -> {:error, err}
+        {:error, err, %{namespace: namespace, name: name}}
     end
   end
 
