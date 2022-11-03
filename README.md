@@ -2,6 +2,15 @@
 
 **TODO: Add description**
 
+
+## Development
+
+Start locally:
+
+1.  Apply CRD to target cluster
+2.  Setup kube config in `config/dev.exs`
+3.  Start with `iex -S mix`
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed

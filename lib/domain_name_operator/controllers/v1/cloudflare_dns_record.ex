@@ -133,24 +133,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       ])
     )
 
-    # Parse the cloudflarednsrecord into a DNS record
-    {:ok, record} = parse(cloudflarednsrecord)
-
-    with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
-      Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
-      )
-
-      {:ok, record}
-    else
-      err ->
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
-        )
-
-        {:error, err}
-    end
+    process_record(cloudflarednsrecord)
   end
 
   @doc """
@@ -167,24 +150,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       ])
     )
 
-    # Parse the cloudflarednsrecord into a DNS record
-    {:ok, record} = parse(cloudflarednsrecord)
-
-    with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
-      Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
-      )
-
-      {:ok, record}
-    else
-      err ->
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
-        )
-
-        {:error, err}
-    end
+    process_record(cloudflarednsrecord)
   end
 
   @doc """
@@ -235,24 +201,46 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       ])
     )
 
-    # Parse the cloudflarednsrecord into a DNS record
-    {:ok, record} = parse(cloudflarednsrecord)
+    process_record(cloudflarednsrecord)
+  end
 
-    with {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
+  def process_record(cloudflarednsrecord) do
+    Utils.Logger.info(__ENV__, "Processing record: #{Utils.to_string(cloudflarednsrecord)}")
+
+    # Parse the cloudflarednsrecord into a DNS record
+    with {:ok, record} <- parse(cloudflarednsrecord),
+         {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
       Logger.info(
         Utils.FromEnv.mfa_str(__ENV__) <> ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
       )
 
       {:ok, record}
     else
-      err ->
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error adding or updating record: err='#{err}' record=#{Utils.map_to_string(record)}"
-        )
-
-        {:error, err}
+      {:error, :not_found} -> parse_record_error(:not_found, cloudflarednsrecord)
+      {:error, :no_ip} -> parse_record_error(:no_ip, cloudflarednsrecord)
+      {:error, :bad_ip} -> parse_record_error(:bad_ip, cloudflarednsrecord)
+      {:error, err} -> process_record_error(err, cloudflarednsrecord)
+      err -> process_record_error(err, cloudflarednsrecord)
     end
+  end
+
+  def parse_record_error(error, cloudflarednsrecord) do
+    Logger.error(
+      Utils.FromEnv.mfa_str(__ENV__) <>
+        ": Error processing cloudflarednsrecord: error='#{Utils.to_string(error)}' cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
+    )
+
+    # Sentry.capture_message("custom_event_name", extra: %{extra: information})
+
+    {:error, error}
+  end
+
+  def process_record_error(error, cloudflarednsrecord) do
+    Logger.error(__ENV__, "Error '#{Utils.to_string(error)}' encountered processing cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
+
+    # Sentry.capture_message("custom_event_name", extra: %{extra: information})
+
+    {:error, error}
   end
 
   #
@@ -324,9 +312,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
          {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip) do
       {:ok, cfar}
     else
-      {:error, :not_found} -> nil
-      {:error, :bad_ip} -> nil
-      {:error, err} -> err
+      {:error, err} -> {:error, err}
       err -> {:error, err}
     end
   end
@@ -334,7 +320,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp parse(record) do
     Logger.error(
       Utils.FromEnv.mfa_str(__ENV__) <>
-        ": parse()/1 invoked with unhandled argument structure.  Make sure the cloudlfarednsrecord object you created in k8s has the expected structure:  #{Utils.map_to_string(record)}"
+        ": parse()/1 invoked with unhandled argument structure.  Make sure the cloudflarednsrecord object you created in k8s has the expected structure:  #{Utils.map_to_string(record)}"
     )
 
     {:error, :unhandled_structure}
@@ -360,6 +346,12 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     Logger.debug(__ENV__, "parse_svc_ip: status='#{Utils.map_to_string(status)}'")
 
     {:ok, ip}
+  end
+
+  defp parse_svc_ip(service) do
+    Utils.Logger.warning(__ENV__, "Service object does not have an IP address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  Service='#{Utils.to_string(service)}'")
+
+    {:err, :no_ip}
   end
 
   defp assemble_cf_a_record(zone_id, hostname, domain, ip) do
