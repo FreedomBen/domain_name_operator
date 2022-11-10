@@ -16,8 +16,14 @@ config :logger, :console, format: "[$level] $message\n"
 
 config :logger, level: :debug
 
+config :logger, Sentry.LoggerBackend,
+  level: :error,
+  excluded_domains: [],
+  # metadata: [:foo_bar],
+  # Change to true to capture log messages!
+  capture_log_messages: false
 
-  # config.exs
+# config.exs
 config :bonny, K8s.Conn, {:from_file, ["~/.kube/config", [context: "optional-alternate-context"]]}
 
 # config :bonny,

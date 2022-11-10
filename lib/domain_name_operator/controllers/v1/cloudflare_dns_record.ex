@@ -102,6 +102,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   alias DomainNameOperator.{Utils, CloudflareOps}
 
   alias DomainNameOperator.Utils.Logger
+  alias DomainNameOperator.ProcessRecordException
 
   @group "domain-name-operator.tamx.org"
   @version "v1"
@@ -230,6 +231,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:error, err, %{namespace: namespace, name: name}} ->
         process_record_error(:service_general, err, namespace, name, cloudflarednsrecord)
 
+      {:error, [%{"code" => 9106}]} ->
+        process_record_error(:cloudflare_auth_missing, cloudflarednsrecord)
+
       {:error, err} ->
         process_record_error(err, cloudflarednsrecord)
 
@@ -260,6 +264,34 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     end
   end
 
+  def process_record_exception(type, cloudflarednsrecord, msg, opts) do
+    tags =
+      opts
+      |> Keyword.get(:tags, %{})
+      |> Map.merge(%{error_type: type})
+
+    extra =
+      opts
+      |> Keyword.get(:extra, %{})
+      |> Map.merge(%{type: type, cloudflarednsrecord: cloudflarednsrecord})
+
+    try do
+      raise ProcessRecordException, msg: msg
+    rescue
+      ex ->
+        case Sentry.capture_exception(ex, stacktrace: __STACKTRACE__, tags: tags, extra: extra) do
+          {:ok, _task} ->
+            ex
+
+          err ->
+            Utils.Logger.error(
+              __ENV__,
+              "Couldn't send exception to sentry:  err='#{err}' type='#{Utils.to_string(type)}' msg='#{msg}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
+            )
+        end
+    end
+  end
+
   def process_record_error(:service_not_found, namespace, name, cloudflarednsrecord) do
     msg =
       "Service '#{name}' was not found in namespace '#{namespace}'.  Could not get IP address needed to create DNS record"
@@ -269,9 +301,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
     )
 
-    Sentry.capture_message(msg,
+    process_record_exception(:service_not_found, cloudflarednsrecord, msg,
       extra: %{
-        cloudflarednsrecord: Utils.to_string(cloudflarednsrecord),
         service_namespace: namespace,
         service_name: name
       }
@@ -288,15 +319,25 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
     )
 
-    Sentry.capture_message(msg,
+    process_record_exception(:service_general, cloudflarednsrecord, msg,
       extra: %{
-        cloudflarednsrecord: Utils.to_string(cloudflarednsrecord),
         service_namespace: namespace,
         service_name: name
       }
     )
 
     {:error, :service_general}
+  end
+
+  def process_record_error(:cloudflare_auth_missing, cloudflarednsrecord) do
+    msg =
+      "Could not authenticate to Cloudflare.  API token may be missing.  Double check that environment variable CLOUDFLARE_API_TOKEN is set."
+
+    Utils.Logger.error(__ENV__, msg)
+
+    process_record_exception(:cloudflare_auth_missing, cloudflarednsrecord, msg, extra: %{})
+
+    {:error, :cloudflare_auth_missing}
   end
 
   def process_record_error(error, cloudflarednsrecord) do
@@ -307,9 +348,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
     )
 
-    Sentry.capture_message(msg,
-      extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)}
-    )
+    process_record_exception(error, cloudflarednsrecord, msg, extra: %{})
 
     {:error, error}
   end
@@ -323,9 +362,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
     )
 
-    Sentry.capture_message(msg,
-      extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)}
-    )
+    process_record_exception(:no_ip, cloudflarednsrecord, msg, extra: %{})
 
     {:error, :no_ip}
   end
@@ -338,9 +375,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "#{msg}.  cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
     )
 
-    Sentry.capture_message(msg,
-      extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)}
-    )
+    process_record_exception(:bad_ip, cloudflarednsrecord, msg, extra: %{})
 
     {:error, :bad_ip}
   end
@@ -353,9 +388,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "#{msg} cloudflarednsrecord=#{Utils.to_string(cloudflarednsrecord)}"
     )
 
-    Sentry.capture_message(msg,
-      extra: %{cloudflarednsrecord: Utils.to_string(cloudflarednsrecord)}
-    )
+    process_record_exception(error, cloudflarednsrecord, msg, extra: %{})
 
     {:error, error}
   end
