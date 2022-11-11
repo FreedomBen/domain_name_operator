@@ -256,6 +256,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:error, err, %{namespace: namespace, name: name}} ->
         process_record_error(:service_general, err, namespace, name, cloudflarednsrecord)
 
+      {:error, [%{"code" => 9106}]} ->
+        process_record_error(:cloudflare_auth_missing, cloudflarednsrecord)
+
       {:error, err} ->
         process_record_error(err, cloudflarednsrecord)
 
@@ -286,7 +289,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
           err ->
             Utils.Logger.error(
               __ENV__,
-              "Couldn't send exception to sentry:  err='#{err}' type='#{Utils.to_string(type)}' msg='#{msg}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
+              "Couldn't send exception to sentry:  err='#{Utils.to_string(err)}' type='#{Utils.to_string(type)}' msg='#{msg}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
             )
         end
     end
@@ -463,6 +466,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
          {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip) do
       {:ok, cfar}
     else
+      {:error, err, %{} = attrs} -> {:error, err, attrs}
       {:error, err} -> {:error, err}
       err -> {:error, err}
     end
@@ -480,7 +484,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp is_ipv4?(ip) do
     case Iptools.is_ipv4?(ip) do
       true -> {:ok, true}
-      false -> {:err, :bad_ip}
+      false -> {:error, :bad_ip}
     end
   end
 
@@ -505,7 +509,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "Service object does not have an IP address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  Service='#{Utils.to_string(service)}'"
     )
 
-    {:err, :no_ip,
+    {:error, :no_ip,
      %{namespace: service["metadata"]["namespace"], name: service["metadata"]["name"]}}
   end
 
