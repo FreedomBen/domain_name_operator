@@ -1,10 +1,9 @@
 import Config
 
 config :domain_name_operator,
-  cloudflare_api_token: System.get_env("CLOUDFLARE_API_TOKEN")
-
-# config :domain_name_operator,
-#   cloudflare_zone_id: System.get_env("CLOUDFLARE_ZONE_ID")
+  cloudflare_api_token: System.get_env("CLOUDFLARE_API_TOKEN"),
+  cloudflare_default_domain: System.get_env("CLOUDFLARE_DEFAULT_DOMAIN"),
+  cloudflare_default_zone_id: System.get_env("CLOUDFLARE_DEFAULT_ZONE_ID")
 
 config :sentry,
   dsn: System.get_env("SENTRY_DSN"),

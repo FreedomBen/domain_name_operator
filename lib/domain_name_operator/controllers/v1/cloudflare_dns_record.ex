@@ -443,7 +443,21 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     Logger.debug(__ENV__, "crd_to_cloudflare_record: (todo addme)")
   end
 
-  defp parse(%{
+  def default_zone_id do
+    case Application.fetch_env!(:domain_name_operator, :cloudflare_default_zone_id) do
+      z when is_binary(z) -> z
+      _ -> raise "Default Zone ID isn't set and record doesn't include a zone ID"
+    end
+  end
+
+  def default_domain do
+    case Application.fetch_env!(:domain_name_operator, :cloudflare_default_domain) do
+      d when is_binary(d) -> d
+      _ -> raise "Default domain isn't set and record doesn't include domain!"
+    end
+  end
+
+  def parse(%{
          "metadata" => %{"name" => _name},
          "spec" => %{
            "namespace" => ns,
@@ -452,7 +466,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "domain" => domain,
            "zoneId" => zone_id
          }
-       }) do
+       } = record) do
     Logger.debug(
       __ENV__,
       "Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
@@ -472,7 +486,51 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     end
   end
 
-  defp parse(record) do
+  # Without zone ID, will set to default
+  def parse(%{
+         "metadata" => %{"name" => _name},
+         "spec" => %{
+           "namespace" => _ns,
+           "serviceName" => _service_name,
+           "hostName" => _hostname,
+           "domain" => _domain
+         }
+  } = record) do
+    record
+    |> update_in(["spec", "zoneId"], fn _ -> default_zone_id() end)
+    |> parse()
+  end
+
+  # Without Domain, will set to default
+  def parse(%{
+         "metadata" => %{"name" => _name},
+         "spec" => %{
+           "namespace" => _ns,
+           "serviceName" => _service_name,
+           "hostName" => hostname,
+         }
+  } = record) do
+    # First try to extract the domain from the hostname.
+    # If not present, then use the default domain
+    record
+    |> update_in(["spec", "domain"], fn _ -> extract_domain(hostname) end)
+    |> parse()
+  end
+
+  # Without namespace, will set to same namespace as our object
+  def parse(%{
+        "metadata" => %{"name" => _name, "namespace" => ns},
+         "spec" => %{
+           "serviceName" => _service_name,
+           "hostName" => _hostname,
+         }
+  } = record) do
+    record
+    |> update_in(["spec", "namespace"], fn _ -> ns end)
+    |> parse()
+  end
+
+  def parse(record) do
     Logger.error(
       Utils.FromEnv.mfa_str(__ENV__) <>
         ": parse()/1 invoked with unhandled argument structure.  Make sure the cloudflarednsrecord object you created in k8s has the expected structure:  #{Utils.map_to_string(record)}"
@@ -581,10 +639,25 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
       err ->
         Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <> ": Error retrieving Service object from k8s: #{err}"
+          Utils.FromEnv.mfa_str(__ENV__) <> ": Error retrieving Service object from k8s: #{Utils.to_string(err)}"
         )
 
         {:error, err, %{namespace: namespace, name: name}}
+    end
+  end
+
+  def extract_domain(hostname) do
+    # Note:  This currently only supports one level of sub-domain!
+    # i.e.  app.tamx.org is ok, some.app.tamx.org is not, nor is tamx.org
+    reg = ~r{^([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)$}
+    case Regex.run(reg, hostname) do
+      [_orig, _hn, name, tld] ->
+        Utils.Logger.debug(__ENV__, "Extracted domain #{name}.#{tld} from hostname #{hostname}")
+        name <> "." <> tld
+
+      _ ->
+        Utils.Logger.warning(__ENV__, "Attempted to extract domain from hostname '#{hostname}' but extraction failed.  Using default domain of #{default_domain()}")
+        default_domain()
     end
   end
 
