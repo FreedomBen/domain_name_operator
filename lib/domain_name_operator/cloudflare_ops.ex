@@ -65,10 +65,10 @@ defmodule DomainNameOperator.CloudflareOps do
     |> List.flatten()
   end
 
-  def create_a_record(zone_id, hostname, ip) do
-    Logger.notice("[create_a_record]: hostname='#{hostname}' ip='#{ip}'")
+  def create_a_record(%CloudflareApi.DnsRecord{} = record) do
+    Logger.notice("[create_a_record]: record='#{Utils.to_string(record)}'")
 
-    case CloudflareApi.DnsRecords.create(client(), zone_id, hostname, ip) do
+    case CloudflareApi.DnsRecords.create(client(), record.zone_id, record) do
       {:ok, retval} ->
         Logger.notice(
           "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
@@ -81,6 +81,23 @@ defmodule DomainNameOperator.CloudflareOps do
         {:error, errs}
     end
   end
+
+  # def create_a_record(zone_id, hostname, ip, proxied) do
+  #   Logger.notice("[create_a_record]: hostname='#{hostname}' ip='#{ip}' proxied='#{proxied}'")
+
+  #   case CloudflareApi.DnsRecords.create(client(), zone_id, hostname, ip, proxied) do
+  #     {:ok, retval} ->
+  #       Logger.notice(
+  #         "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
+  #       )
+
+  #       {:ok, retval}
+
+  #     {:error, errs} ->
+  #       Logger.error("[create_a_records/2]: error - #{Utils.to_string(errs)}")
+  #       {:error, errs}
+  #   end
+  # end
 
   # TODO:  This should be tested thoroughly with 0, 1, n pre-existing records
   def add_or_update_record(record) do
@@ -97,7 +114,7 @@ defmodule DomainNameOperator.CloudflareOps do
 
     Logger.info(
       "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
-        "zone_id='#{record.zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}': " <>
+        "zone_id='#{record.zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}', proxied='#{record.proxied}': " <>
         Utils.to_string(prev_recs)
     )
 
@@ -120,7 +137,7 @@ defmodule DomainNameOperator.CloudflareOps do
             "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
         )
 
-        with {:ok, retval} <- create_a_record(record.zone_id, record.hostname, record.ip),
+        with {:ok, retval} <- create_a_record(record),
              :ok <- delete_records(prev_recs, :delete_all_matching) do
           {:ok, retval}
         else

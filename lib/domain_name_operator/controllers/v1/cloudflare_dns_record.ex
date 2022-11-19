@@ -437,7 +437,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "serviceName" => _service_name,
            "hostName" => _hostname,
            "domain" => _domain,
-           "zoneId" => _zone_id
+           "zoneId" => _zone_id,
+           "proxied" => _proxied
          }
        }) do
     Logger.debug(__ENV__, "crd_to_cloudflare_record: (todo addme)")
@@ -464,7 +465,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "serviceName" => service_name,
            "hostName" => hostname,
            "domain" => domain,
-           "zoneId" => zone_id
+           "zoneId" => zone_id,
+           "proxied" => proxied
          }
        } = record) do
     Logger.debug(
@@ -477,7 +479,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
          {:ok, ip} <- parse_svc_ip(service),
          {:ok, _} <- is_ipv4?(ip),
          {:ok, _} <- validate_domain(zone_id, domain),
-         {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip) do
+         {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip, proxied) do
       {:ok, cfar}
     else
       {:error, err, %{} = attrs} -> {:error, err, attrs}
@@ -493,7 +495,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "namespace" => _ns,
            "serviceName" => _service_name,
            "hostName" => _hostname,
-           "domain" => _domain
+           "domain" => _domain,
+           "proxied" => _proxied
          }
   } = record) do
     record
@@ -508,6 +511,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
            "namespace" => _ns,
            "serviceName" => _service_name,
            "hostName" => hostname,
+           "proxied" => proxied
          }
   } = record) do
     # First try to extract the domain from the hostname.
@@ -523,10 +527,24 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
          "spec" => %{
            "serviceName" => _service_name,
            "hostName" => _hostname,
+           "proxied" => proxied
          }
   } = record) do
     record
     |> update_in(["spec", "namespace"], fn _ -> ns end)
+    |> parse()
+  end
+
+  # Without proxied, will default to false
+  def parse(%{
+        "metadata" => %{"name" => _name, "namespace" => ns},
+         "spec" => %{
+           "serviceName" => _service_name,
+           "hostName" => _hostname
+         }
+  } = record) do
+    record
+    |> update_in(["spec", "proxied"], fn _ -> false end)
     |> parse()
   end
 
@@ -571,10 +589,10 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
      %{namespace: service["metadata"]["namespace"], name: service["metadata"]["name"]}}
   end
 
-  defp assemble_cf_a_record(zone_id, hostname, domain, ip) do
+  defp assemble_cf_a_record(zone_id, hostname, domain, ip, proxied) do
     Logger.debug(
       __ENV__,
-      "assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}'"
+      "assemble_cf_a_record: zone_id='#{zone_id}' hostname='#{hostname}' ip='#{ip}' proxied='#{proxied}'"
     )
 
     cfar = %DnsRecord{
@@ -582,7 +600,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       hostname: hostname,
       zone_name: domain,
       # ip: List.first(service.status.loadBalancer.ingress).ip
-      ip: ip
+      ip: ip,
+      proxied: proxied
     }
 
     {:ok, cfar}
