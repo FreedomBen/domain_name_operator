@@ -137,8 +137,8 @@ defmodule DomainNameOperator.CloudflareOps do
             "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
         )
 
-        with {:ok, retval} <- create_a_record(record),
-             :ok <- delete_records(prev_recs, :delete_all_matching) do
+        with :ok <- delete_records(prev_recs, :delete_all_matching),
+             {:ok, retval} <- create_a_record(record) do
           {:ok, retval}
         else
           {:error, error} -> {:error, error}
