@@ -29,7 +29,7 @@ defmodule DomainNameOperator.MixProject do
       {:tesla, "~> 1.4"},
       {:hackney, "~> 1.17"},
       # {:cloudflare_api, "~> 0.0"},
-      {:cloudflare_api, "~> 0.1"},
+      {:cloudflare_api, "~> 0.2"},
       {:iptools, "~> 0.0"},
       # {:k8s, "~> 1.1.3"},
       {:number, "~> 1.0.3"},
