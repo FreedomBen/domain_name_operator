@@ -458,17 +458,19 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     end
   end
 
-  def parse(%{
-         "metadata" => %{"name" => _name},
-         "spec" => %{
-           "namespace" => ns,
-           "serviceName" => service_name,
-           "hostName" => hostname,
-           "domain" => domain,
-           "zoneId" => zone_id,
-           "proxied" => proxied
-         }
-       } = record) do
+  def parse(
+        %{
+          "metadata" => %{"name" => _name},
+          "spec" => %{
+            "namespace" => ns,
+            "serviceName" => service_name,
+            "hostName" => hostname,
+            "domain" => domain,
+            "zoneId" => zone_id,
+            "proxied" => proxied
+          }
+        } = record
+      ) do
     Logger.debug(
       __ENV__,
       "Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
@@ -489,31 +491,35 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   # Without zone ID, will set to default
-  def parse(%{
-         "metadata" => %{"name" => _name},
-         "spec" => %{
-           "namespace" => _ns,
-           "serviceName" => _service_name,
-           "hostName" => _hostname,
-           "domain" => _domain,
-           "proxied" => _proxied
-         }
-  } = record) do
+  def parse(
+        %{
+          "metadata" => %{"name" => _name},
+          "spec" => %{
+            "namespace" => _ns,
+            "serviceName" => _service_name,
+            "hostName" => _hostname,
+            "domain" => _domain,
+            "proxied" => _proxied
+          }
+        } = record
+      ) do
     record
     |> update_in(["spec", "zoneId"], fn _ -> default_zone_id() end)
     |> parse()
   end
 
   # Without Domain, will set to default
-  def parse(%{
-         "metadata" => %{"name" => _name},
-         "spec" => %{
-           "namespace" => _ns,
-           "serviceName" => _service_name,
-           "hostName" => hostname,
-           "proxied" => proxied
-         }
-  } = record) do
+  def parse(
+        %{
+          "metadata" => %{"name" => _name},
+          "spec" => %{
+            "namespace" => _ns,
+            "serviceName" => _service_name,
+            "hostName" => hostname,
+            "proxied" => proxied
+          }
+        } = record
+      ) do
     # First try to extract the domain from the hostname.
     # If not present, then use the default domain
     record
@@ -522,27 +528,31 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   # Without namespace, will set to same namespace as our object
-  def parse(%{
-        "metadata" => %{"name" => _name, "namespace" => ns},
-         "spec" => %{
-           "serviceName" => _service_name,
-           "hostName" => _hostname,
-           "proxied" => proxied
-         }
-  } = record) do
+  def parse(
+        %{
+          "metadata" => %{"name" => _name, "namespace" => ns},
+          "spec" => %{
+            "serviceName" => _service_name,
+            "hostName" => _hostname,
+            "proxied" => proxied
+          }
+        } = record
+      ) do
     record
     |> update_in(["spec", "namespace"], fn _ -> ns end)
     |> parse()
   end
 
   # Without proxied, will default to false
-  def parse(%{
-        "metadata" => %{"name" => _name, "namespace" => ns},
-         "spec" => %{
-           "serviceName" => _service_name,
-           "hostName" => _hostname
-         }
-  } = record) do
+  def parse(
+        %{
+          "metadata" => %{"name" => _name, "namespace" => ns},
+          "spec" => %{
+            "serviceName" => _service_name,
+            "hostName" => _hostname
+          }
+        } = record
+      ) do
     record
     |> update_in(["spec", "proxied"], fn _ -> false end)
     |> parse()
@@ -564,6 +574,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     end
   end
 
+  # For a single IP address
   defp parse_svc_ip(%{
          "status" =>
            %{
@@ -577,6 +588,42 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     Logger.debug(__ENV__, "parse_svc_ip: status='#{Utils.map_to_string(status)}'")
 
     {:ok, ip}
+  end
+
+  # For multiple IP addresses, especially now that DO added IPv6 support
+  defp parse_svc_ip(%{
+         "status" =>
+           %{
+             "loadBalancer" => %{
+               "ingress" => [ip_addrs]
+             }
+           } = status
+       }) do
+    Logger.debug(
+      __ENV__,
+      "parse_svc_ip: Parsing service with multiple IP addresses.  Looking for first IPv4 address.  status='#{Utils.map_to_string(status)}'"
+    )
+
+    # Iterate through the ip_addrs map and find the first IPv4 address
+    ipv4_address =
+      ip_addrs
+      |> Enum.map(& &1["ip"])
+      |> Enum.find(&is_ipv4?/1)
+
+    # Check if we found an IPv4 address.  If not, ipv4_address will be nil
+    case ipv4_address do
+      nil ->
+        Utils.Logger.warning(
+          __ENV__,
+          "Service object does not have an IPv4 address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  The IP addresses assigned are:  ip_addrs='#{Utils.to_string(ip_addrs)}'  Service='#{Utils.to_string(status)}'"
+        )
+
+        {:error, :no_ip,
+         %{namespace: status["metadata"]["namespace"], name: status["metadata"]["name"]}}
+
+      ip ->
+        {:ok, ip}
+    end
   end
 
   defp parse_svc_ip(service) do
@@ -658,7 +705,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
       err ->
         Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <> ": Error retrieving Service object from k8s: #{Utils.to_string(err)}"
+          Utils.FromEnv.mfa_str(__ENV__) <>
+            ": Error retrieving Service object from k8s: #{Utils.to_string(err)}"
         )
 
         {:error, err, %{namespace: namespace, name: name}}
@@ -669,13 +717,18 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     # Note:  This currently only supports one level of sub-domain!
     # i.e.  app.tamx.org is ok, some.app.tamx.org is not, nor is tamx.org
     reg = ~r{^([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)\.([a-zA-Z0-9-]+)$}
+
     case Regex.run(reg, hostname) do
       [_orig, _hn, name, tld] ->
         Utils.Logger.debug(__ENV__, "Extracted domain #{name}.#{tld} from hostname #{hostname}")
         name <> "." <> tld
 
       _ ->
-        Utils.Logger.warning(__ENV__, "Attempted to extract domain from hostname '#{hostname}' but extraction failed.  Using default domain of #{default_domain()}")
+        Utils.Logger.warning(
+          __ENV__,
+          "Attempted to extract domain from hostname '#{hostname}' but extraction failed.  Using default domain of #{default_domain()}"
+        )
+
         default_domain()
     end
   end
