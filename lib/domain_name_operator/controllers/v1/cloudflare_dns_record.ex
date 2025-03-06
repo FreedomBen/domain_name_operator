@@ -627,10 +627,24 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   defp parse_svc_ip(service) do
+    IO.puts("-------------------------AAAAAAAAAAAAAAAAAAAAAAAA-------------------------")
     Utils.Logger.warning(
       __ENV__,
       "Service object does not have an IP address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  Service='#{Utils.to_string(service)}'"
     )
+    IO.puts("-------------------------BBBBBBBBBBBBBBBBBBBBBBBB-------------------------")
+
+      %{
+         "status" =>
+           %{
+             "loadBalancer" => %{
+               "ingress" => ip_addrs
+             }
+           } = status
+       } = service
+    IO.puts "status: #{Utils.to_string(status)}"
+    IO.puts "ip_addrs: #{Utils.to_string(ip_addrs)}"
+    IO.puts("-------------------------CCCCCCCCCCCCCCCCCCCCCCCC-------------------------")
 
     {:error, :no_ip,
      %{namespace: service["metadata"]["namespace"], name: service["metadata"]["name"]}}
