@@ -358,7 +358,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
   def parse_record_error(:no_ip, namespace, name, cloudflarednsrecord) do
     msg =
-      "Service '#{name}' in namespace '#{namespace}' has no IP address.  This can happen if the service is newly created and is still being provisioned by DO, but if it's been more than 5 to 10 minutes could mean there's an issue that needs invetigation.  was not found .  Could not get IP address needed to create DNS record"
+      "Service '#{name}' in namespace '#{namespace}' has no IP address.  This can happen if the service is newly created and is still being provisioned by DO, but if it's been more than 5 to 10 minutes could mean there's an issue that needs investigation.  Could not get IP address needed to create DNS record"
 
     Utils.Logger.error(
       __ENV__,
