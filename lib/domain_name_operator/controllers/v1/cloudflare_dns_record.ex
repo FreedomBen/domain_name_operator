@@ -595,7 +595,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
          "status" =>
            %{
              "loadBalancer" => %{
-               "ingress" => [ip_addrs]
+               "ingress" => ip_addrs
              }
            } = status
        }) do
