@@ -195,6 +195,8 @@ defmodule DomainNameOperator.CloudflareOps do
   # Returns {:ok, _} | {:error, errs}
   def delete_record(record, _multiple_match_behavior) do
     Logger.warning("[delete_record]: record='#{Utils.to_string(record)}'")
+    Logger.warning("[delete_record]: zone_id='#{inspect(record.zone_id)}' is_nil?=#{is_nil(record.zone_id)} is_binary?=#{is_binary(record.zone_id)}")
+    Logger.warning("[delete_record]: record_id='#{inspect(record.id)}' is_nil?=#{is_nil(record.id)} is_binary?=#{is_binary(record.id)}")
 
     Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
     Cache.delete_records(record.hostname)
@@ -210,6 +212,7 @@ defmodule DomainNameOperator.CloudflareOps do
         {:error, :empty_zone_id}
 
       true ->
+        Logger.warning("[delete_record]: Making Cloudflare API call with zone_id='#{record.zone_id}' record_id='#{record.id}'")
         case CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id) do
           {:ok, result} ->
             Logger.notice(

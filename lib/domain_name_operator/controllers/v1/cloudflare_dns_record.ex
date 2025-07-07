@@ -168,31 +168,42 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       ])
     )
 
-    # Parse the cloudflarednsrecord into a DNS record
-    {:ok, record} = parse(cloudflarednsrecord)
+    Logger.warning("[delete] CRD data: #{Utils.to_string(cloudflarednsrecord)}")
 
-    with {:ok, record} <- parse(cloudflarednsrecord),
-         {:ok, cf} <- CloudflareOps.delete_record(record) do
-      Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <> ": Deleted record: cf=#{Utils.map_to_string(cf)}"
-      )
+    with {:ok, record} <- parse(cloudflarednsrecord) do
+      Logger.warning("[delete] Parsed record successfully, zone_id='#{inspect(record.zone_id)}' hostname='#{record.hostname}'")
+      
+      case CloudflareOps.delete_record(record) do
+        {:ok, cf} ->
+          Logger.info(
+            Utils.FromEnv.mfa_str(__ENV__) <> ": Deleted record: cf=#{Utils.map_to_string(cf)}"
+          )
 
-      {:ok, record}
+          {:ok, record}
+
+        {:error, error} ->
+          Utils.Logger.error(
+            __ENV__,
+            "Error deleting record: error='#{Utils.to_string(error)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
+          )
+
+          handle_process_record_error({:error, error}, cloudflarednsrecord)
+
+        err ->
+          Utils.Logger.error(
+            __ENV__,
+            "Unexpected CloudflareOps.delete_record result: err='#{Utils.to_string(err)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
+          )
+
+          handle_process_record_error(err, cloudflarednsrecord)
+      end
     else
       {:error, error} ->
-        Utils.Logger.error(
-          __ENV__,
-          "Error deleting record: error='#{Utils.to_string(error)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
-        )
-
+        Logger.error("[delete] Parse failed: error='#{Utils.to_string(error)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
         handle_process_record_error({:error, error}, cloudflarednsrecord)
 
       err ->
-        Utils.Logger.error(
-          __ENV__,
-          "Unexpected error deleting record: err='#{Utils.to_string(err)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
-        )
-
+        Logger.error("[delete] Unexpected parse result: err='#{Utils.to_string(err)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
         handle_process_record_error(err, cloudflarednsrecord)
     end
   end
