@@ -182,7 +182,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:error, error} ->
         Utils.Logger.error(
           __ENV__,
-          "Error deleting record: error='#{Utils.to_string(error)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}' full_stacktrace='#{Exception.format_stacktrace(__STACKTRACE__)}'"
+          "Error deleting record: error='#{Utils.to_string(error)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
         )
 
         handle_process_record_error({:error, error}, cloudflarednsrecord)
@@ -190,7 +190,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       err ->
         Utils.Logger.error(
           __ENV__,
-          "Unexpected error deleting record: err='#{Utils.to_string(err)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}' full_stacktrace='#{Exception.format_stacktrace(__STACKTRACE__)}'"
+          "Unexpected error deleting record: err='#{Utils.to_string(err)}' record='#{Utils.map_to_string(record)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'"
         )
 
         handle_process_record_error(err, cloudflarednsrecord)

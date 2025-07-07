@@ -201,13 +201,13 @@ defmodule DomainNameOperator.CloudflareOps do
 
       {:error, error} ->
         Logger.error(
-          "[delete_record]: Failed to delete record. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' error='#{Utils.to_string(error)}' full_stacktrace='#{Exception.format_stacktrace(__STACKTRACE__)}'"
+          "[delete_record]: Failed to delete record. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' error='#{Utils.to_string(error)}'"
         )
         {:error, error}
 
       unexpected ->
         Logger.error(
-          "[delete_record]: Unexpected response from Cloudflare API. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' response='#{Utils.to_string(unexpected)}' full_stacktrace='#{Exception.format_stacktrace(__STACKTRACE__)}'"
+          "[delete_record]: Unexpected response from Cloudflare API. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' response='#{Utils.to_string(unexpected)}'"
         )
         {:error, {:unexpected_response, unexpected}}
     end
