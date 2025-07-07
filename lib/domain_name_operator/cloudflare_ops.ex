@@ -192,7 +192,25 @@ defmodule DomainNameOperator.CloudflareOps do
     Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
     Cache.delete_records(record.hostname)
 
-    CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id)
+    case CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id) do
+      {:ok, result} ->
+        Logger.notice(
+          "[delete_record]: Successfully deleted record. Cloudflare response: #{Utils.to_string(result)}"
+        )
+        {:ok, result}
+
+      {:error, error} ->
+        Logger.error(
+          "[delete_record]: Failed to delete record. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' error='#{Utils.to_string(error)}' full_stacktrace='#{Exception.format_stacktrace(__STACKTRACE__)}'"
+        )
+        {:error, error}
+
+      unexpected ->
+        Logger.error(
+          "[delete_record]: Unexpected response from Cloudflare API. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' response='#{Utils.to_string(unexpected)}' full_stacktrace='#{Exception.format_stacktrace(__STACKTRACE__)}'"
+        )
+        {:error, {:unexpected_response, unexpected}}
+    end
   end
 
   @doc ~S"""
