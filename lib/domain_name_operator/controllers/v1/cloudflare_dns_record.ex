@@ -457,9 +457,10 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   def default_zone_id do
-    case Application.fetch_env!(:domain_name_operator, :cloudflare_default_zone_id) do
-      z when is_binary(z) -> z
-      _ -> raise "Default Zone ID isn't set and record doesn't include a zone ID"
+    case Application.fetch_env(:domain_name_operator, :cloudflare_default_zone_id) do
+      {:ok, z} when is_binary(z) and z != "" -> {:ok, z}
+      {:ok, z} -> {:error, "Default Zone ID is empty: '#{z}'"}
+      :error -> {:error, "Default Zone ID environment variable not set (CLOUDFLARE_DEFAULT_ZONE_ID)"}
     end
   end
 
@@ -488,17 +489,33 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"
     )
 
-    with {:ok, hostname, domain} <- validate_hostname(hostname, domain),
-         {:ok, service} <- get_service(ns, service_name),
-         {:ok, ip} <- parse_svc_ip(service),
-         {:ok, _} <- is_ipv4?(ip),
-         {:ok, _} <- validate_domain(zone_id, domain),
-         {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip, proxied) do
-      {:ok, cfar}
-    else
-      {:error, err, %{} = attrs} -> {:error, err, attrs}
-      {:error, err} -> {:error, err}
-      err -> {:error, err}
+    # Validate zone_id before proceeding
+    cond do
+      is_nil(zone_id) ->
+        Logger.error("Zone ID is nil in record spec for hostname='#{hostname}'")
+        {:error, {:invalid_zone_id, "Zone ID cannot be nil"}}
+
+      zone_id == "" ->
+        Logger.error("Zone ID is empty string in record spec for hostname='#{hostname}'")
+        {:error, {:invalid_zone_id, "Zone ID cannot be empty"}}
+
+      not is_binary(zone_id) ->
+        Logger.error("Zone ID is not a string in record spec for hostname='#{hostname}', got: #{inspect(zone_id)}")
+        {:error, {:invalid_zone_id, "Zone ID must be a string"}}
+
+      true ->
+        with {:ok, hostname, domain} <- validate_hostname(hostname, domain),
+             {:ok, service} <- get_service(ns, service_name),
+             {:ok, ip} <- parse_svc_ip(service),
+             {:ok, _} <- is_ipv4?(ip),
+             {:ok, _} <- validate_domain(zone_id, domain),
+             {:ok, cfar} <- assemble_cf_a_record(zone_id, hostname, domain, ip, proxied) do
+          {:ok, cfar}
+        else
+          {:error, err, %{} = attrs} -> {:error, err, attrs}
+          {:error, err} -> {:error, err}
+          err -> {:error, err}
+        end
     end
   end
 
@@ -515,9 +532,15 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
           }
         } = record
       ) do
-    record
-    |> update_in(["spec", "zoneId"], fn _ -> default_zone_id() end)
-    |> parse()
+    case default_zone_id() do
+      {:ok, zone_id} ->
+        record
+        |> update_in(["spec", "zoneId"], fn _ -> zone_id end)
+        |> parse()
+      {:error, reason} ->
+        Logger.error("Failed to get default zone ID: #{reason}")
+        {:error, {:missing_zone_id, reason}}
+    end
   end
 
   # Without Domain, will set to default
