@@ -243,9 +243,12 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
         process_record_error(:cloudflare_auth_missing, cloudflarednsrecord)
 
       {:error, err} ->
+        Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <>
+          "{:error, err} - err='#{Utils.to_string(err)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
         process_record_error(err, cloudflarednsrecord)
 
       err ->
+          "err (generic=) - err='#{Utils.to_string(err)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
         handle_process_record_error(err, cloudflarednsrecord)
     end
   end
