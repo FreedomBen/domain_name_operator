@@ -172,10 +172,17 @@ defmodule DomainNameOperator.CloudflareOps do
 
     cond do
       Enum.count(recs) == 1 ->
-        delete_record(List.first(recs), multiple_match_behavior)
+        # Preserve the original zone_id in case the API-fetched record doesn't have it
+        fetched_record = List.first(recs)
+        updated_record = %{fetched_record | zone_id: record.zone_id}
+        Logger.debug("[delete_record] Preserving original zone_id='#{record.zone_id}' for fetched record")
+        delete_record(updated_record, multiple_match_behavior)
 
       multiple_match_behavior == :delete_all_matching ->
-        delete_records(recs, multiple_match_behavior)
+        # Preserve original zone_id for all records
+        updated_recs = Enum.map(recs, fn rec -> %{rec | zone_id: record.zone_id} end)
+        Logger.debug("[delete_record] Preserving original zone_id='#{record.zone_id}' for #{Enum.count(updated_recs)} fetched records")
+        delete_records(updated_recs, multiple_match_behavior)
 
       true ->
         Logger.error(
