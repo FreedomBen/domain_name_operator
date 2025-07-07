@@ -192,24 +192,36 @@ defmodule DomainNameOperator.CloudflareOps do
     Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
     Cache.delete_records(record.hostname)
 
-    case CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id) do
-      {:ok, result} ->
-        Logger.notice(
-          "[delete_record]: Successfully deleted record. Cloudflare response: #{Utils.to_string(result)}"
-        )
-        {:ok, result}
+    # Validate zone_id before making API call
+    cond do
+      is_nil(record.zone_id) ->
+        Logger.error("[delete_record]: Missing zone_id for record '#{record.hostname}' (record_id='#{record.id}')")
+        {:error, :missing_zone_id}
 
-      {:error, error} ->
-        Logger.error(
-          "[delete_record]: Failed to delete record. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' error='#{Utils.to_string(error)}'"
-        )
-        {:error, error}
+      record.zone_id == "" ->
+        Logger.error("[delete_record]: Empty zone_id for record '#{record.hostname}' (record_id='#{record.id}')")
+        {:error, :empty_zone_id}
 
-      unexpected ->
-        Logger.error(
-          "[delete_record]: Unexpected response from Cloudflare API. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' response='#{Utils.to_string(unexpected)}'"
-        )
-        {:error, {:unexpected_response, unexpected}}
+      true ->
+        case CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id) do
+          {:ok, result} ->
+            Logger.notice(
+              "[delete_record]: Successfully deleted record. Cloudflare response: #{Utils.to_string(result)}"
+            )
+            {:ok, result}
+
+          {:error, error} ->
+            Logger.error(
+              "[delete_record]: Failed to delete record. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' error='#{Utils.to_string(error)}'"
+            )
+            {:error, error}
+
+          unexpected ->
+            Logger.error(
+              "[delete_record]: Unexpected response from Cloudflare API. zone_id='#{record.zone_id}' record_id='#{record.id}' hostname='#{record.hostname}' response='#{Utils.to_string(unexpected)}'"
+            )
+            {:error, {:unexpected_response, unexpected}}
+        end
     end
   end
 
