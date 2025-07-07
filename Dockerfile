@@ -2,7 +2,7 @@
 ###### Build Image ######
 #########################
 
-FROM bitwalker/alpine-elixir:1.12 as builder
+FROM bitwalker/alpine-elixir:1.16 as builder
 
 ENV MIX_ENV=prod \
   MIX_HOME=/opt/mix \
@@ -28,7 +28,7 @@ RUN mix release
 #########################
 
 #FROM alpine:3.10
-FROM almalinux:8.5
+FROM almalinux:8.10
 
 #RUN apk add --update openssl ncurses
 RUN dnf install -y openssl ncurses
