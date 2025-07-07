@@ -248,6 +248,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
         process_record_error(err, cloudflarednsrecord)
 
       err ->
+        Logger.debug(Utils.FromEnv.mfa_str(__ENV__) <>
           "err (generic=) - err='#{Utils.to_string(err)}' cloudflarednsrecord='#{Utils.to_string(cloudflarednsrecord)}'")
         handle_process_record_error(err, cloudflarednsrecord)
     end
