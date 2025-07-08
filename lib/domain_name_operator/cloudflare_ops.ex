@@ -238,7 +238,10 @@ defmodule DomainNameOperator.CloudflareOps do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
 
     Enum.any?(recs, fn r ->
-      r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip &&
+      # For now, don't check the zone ID as it may not get returned by the Cloudflare API
+      # r.zone_id == record.zone_id && r.hostname == record.hostname && r.ip == record.ip &&
+      #   r.proxied == record.proxied
+      r.hostname == record.hostname && r.ip == record.ip &&
         r.proxied == record.proxied
     end)
   end
