@@ -655,13 +655,21 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   defp get_service(namespace, name) do
+    metadata = %{
+      "name" => name,
+      "namespace" => namespace
+    }
+
     svc = %{
       "apiVersion" => "v1",
       "kind" => "Service",
-      "metadata" => %{
-        "name" => name,
-        "namespace" => namespace
-      }
+      "metadata" => metadata
+    }
+
+    ing = %{
+      "apiVersion" => "networking.k8s.io/v1",
+      "kind" => "Ingress",
+      "metadata" => metadata
     }
 
     #
@@ -682,34 +690,53 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       "Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'"
     )
 
-    # with _conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
-    with _conn <- K8s.Conn.from_service_account(),
-         operation <- K8s.Client.get(svc),
-         # {:ok, result} <- K8s.Client.run(conn, operation) do
-         {:ok, result} <- K8s.Client.run(operation, :default) do
-      Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <>
-          ": Retrieved Service object from k8s: #{Utils.map_to_string(result)}"
-      )
+    with _conn <- K8s.Conn.from_service_account() do
+      # Try to retrieve Service
+      svc_op = K8s.Client.get(svc)
+      case K8s.Client.run(svc_op, :default) do
+        {:ok, result} ->
+          Logger.info(
+            Utils.FromEnv.mfa_str(__ENV__) <>
+              ": Retrieved Service object from k8s: #{Utils.map_to_string(result)}"
+          )
+          {:ok, result}
 
-      {:ok, result}
-    else
-      {:error, :not_found} ->
-        # The specified service doesn't exist!  Tell user about error somehow and stop
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error retrieving Service object from k8s.  It does not appear to exist.  Verify it is named '#{name}' and is in the namespace '#{namespace}': :service_not_found"
-        )
+        {:error, :not_found} ->
+          # If Service not found, try to retrieve Ingress
+          ing_op = K8s.Client.get(ing)
+          case K8s.Client.run(ing_op, :default) do
+            {:ok, result} ->
+              Logger.info(
+                Utils.FromEnv.mfa_str(__ENV__) <>
+                  ": Retrieved Ingress object from k8s: #{Utils.map_to_string(result)}"
+              )
+              {:ok, result}
 
-        {:error, :service_not_found, %{namespace: namespace, name: name}}
+            {:error, :not_found} ->
+              # If both Service and Ingress not found, log an error
+              Logger.error(
+                Utils.FromEnv.mfa_str(__ENV__) <>
+                  ": Error retrieving resource object from k8s. It does not appear to exist. Verify it is named '#{name}' and is in the namespace '#{namespace}': :resource_not_found"
+              )
+              {:error, :resource_not_found, %{namespace: namespace, name: name}}
 
-      err ->
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error retrieving Service object from k8s: #{Utils.to_string(err)}"
-        )
+            err ->
+              # If an error occurs while retrieving Ingress, log the error
+              Logger.error(
+                Utils.FromEnv.mfa_str(__ENV__) <>
+                  ": Error retrieving Ingress object from k8s: #{Utils.to_string(err)}"
+              )
+              {:error, err, %{namespace: namespace, name: name}}
+          end
 
-        {:error, err, %{namespace: namespace, name: name}}
+        err ->
+          # If an error occurs while retrieving Service, log the error
+          Logger.error(
+            Utils.FromEnv.mfa_str(__ENV__) <>
+              ": Error retrieving Service object from k8s: #{Utils.to_string(err)}"
+          )
+          {:error, err, %{namespace: namespace, name: name}}
+      end
     end
   end
 
