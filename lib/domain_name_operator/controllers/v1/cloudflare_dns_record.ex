@@ -598,7 +598,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
                "ingress" => ip_addrs
              }
            } = status
-       }) do
+       } = service) do
     Logger.debug(
       __ENV__,
       "parse_svc_ip: Parsing service with multiple IP addresses.  Looking for first IPv4 address.  status='#{Utils.map_to_string(status)}'"
@@ -615,11 +615,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       nil ->
         Utils.Logger.warning(
           __ENV__,
-          "Service object does not have an IPv4 address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  The IP addresses assigned are:  ip_addrs='#{Utils.to_string(ip_addrs)}'  Service='#{Utils.to_string(status)}'"
+          "Service object does not have an IPv4 address.  This can sometimes take a few minutes on a newly created service but if it's been more than 5 or so minutes, it might be a problem.  The IP addresses assigned are:  ip_addrs='#{Utils.to_string(ip_addrs)}'  Service='#{Utils.to_string(service)}'"
         )
 
         {:error, :no_ip,
-         %{namespace: status["metadata"]["namespace"], name: status["metadata"]["name"]}}
+         %{namespace: service["metadata"]["namespace"], name: service["metadata"]["name"]}}
 
       ip ->
         {:ok, ip}

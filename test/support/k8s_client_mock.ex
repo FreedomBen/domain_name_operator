@@ -8,33 +8,16 @@ defmodule DomainNameOperator.K8sClient.Mock do
 
   @behaviour DomainNameOperator.K8sClient
 
+  alias DomainNameOperator.K8sOpenapi
+
   @impl true
   def get_service(namespace, name) do
-    case {namespace, name} do
-      {"default", "existing-service"} ->
-        {:ok, example_service(namespace, name)}
+    case name do
+      "existing-service" ->
+        {:ok, K8sOpenapi.example_service(namespace, name)}
 
       _ ->
         {:error, :service_not_found, %{namespace: namespace, name: name}}
     end
   end
-
-  defp example_service(namespace, name) do
-    %{
-      "apiVersion" => "v1",
-      "kind" => "Service",
-      "metadata" => %{
-        "name" => name,
-        "namespace" => namespace
-      },
-      "status" => %{
-        "loadBalancer" => %{
-          "ingress" => [
-            %{"ip" => "203.0.113.10"}
-          ]
-        }
-      }
-    }
-  end
 end
-
