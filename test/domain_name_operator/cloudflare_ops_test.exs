@@ -57,6 +57,69 @@ defmodule DomainNameOperator.CloudflareOpsTest do
     end
   end
 
+  describe "relevant_a_records/3" do
+    test "returns only ExternalIP addresses from cached service-like map" do
+      zone_id = "zone-1"
+      host = "service-host"
+      domain = "example.com"
+
+      addresses = [
+        %{"type" => "ExternalIP", "ip" => "198.51.100.1"},
+        %{"type" => "InternalIP", "ip" => "10.0.0.1"},
+        %{"type" => "ExternalIP", "ip" => "198.51.100.2"}
+      ]
+
+      Cache.add_records(host, %{"status" => %{"addresses" => addresses}})
+
+      results = CloudflareOps.relevant_a_records(zone_id, host, domain)
+      assert Enum.all?(results, fn a -> a["type"] == "ExternalIP" end)
+      assert Enum.map(results, & &1["ip"]) == ["198.51.100.1", "198.51.100.2"]
+    end
+  end
+
+  describe "error handling using a failing client" do
+    defmodule ErrorClientMock do
+      @behaviour DomainNameOperator.CloudflareClient
+
+      @impl true
+      def new_client(_api_token), do: :error_client
+
+      @impl true
+      def hostname_exists?(_client, _zone_id, _hostname), do: {:error, :boom}
+
+      @impl true
+      def list_a_records(_client, _zone_id), do: {:error, :boom}
+
+      @impl true
+      def list_a_records_for_host_domain(_client, _zone_id, _host, _domain),
+        do: {:error, :boom}
+
+      @impl true
+      def create_a_record(_client, _zone_id, _record), do: {:error, :boom}
+
+      @impl true
+      def delete_a_record(_client, _zone_id, _id), do: {:error, :boom}
+    end
+
+    setup do
+      # Override the cloudflare client for tests in this describe block
+      Application.put_env(:domain_name_operator, :cloudflare_client, ErrorClientMock)
+      :ok
+    end
+
+    test "record_present?/2 returns false on client error" do
+      refute CloudflareOps.record_present?("zone-err", "any-host")
+    end
+
+    test "get_a_records/1 returns [] on error" do
+      assert CloudflareOps.get_a_records("zone-err") == []
+    end
+
+    test "get_a_records/3 returns [] on error and does not crash" do
+      assert CloudflareOps.get_a_records("zone-err", "host", "example.com") == []
+    end
+  end
+
   describe "add_or_update_record/1" do
     test "returns {:ok, record} when matching record already exists" do
       # existing.example.com already exists in the mock with matching ip/proxied
