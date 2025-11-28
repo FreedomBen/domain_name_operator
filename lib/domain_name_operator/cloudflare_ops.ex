@@ -1,11 +1,7 @@
 defmodule DomainNameOperator.CloudflareOps do
   alias DomainNameOperator.Utils.Logger
   alias DomainNameOperator.{Utils, Cache}
-
-  def client do
-    Application.fetch_env!(:domain_name_operator, :cloudflare_api_token)
-    |> CloudflareApi.new()
-  end
+  alias DomainNameOperator.CloudflareClient
 
   # TODO:  Add ability to have a default zone ID since some users creating dns
   # records won't be able to get the zone ID
@@ -15,13 +11,19 @@ defmodule DomainNameOperator.CloudflareOps do
 
   def record_present?(zone_id, hostname) do
     Logger.notice("[record_present?]:  zone_id='#{zone_id}', hostname='#{hostname}'")
-    CloudflareApi.DnsRecords.hostname_exists?(client(), zone_id, hostname)
+
+    case cloudflare_client().hostname_exists?(client(), zone_id, hostname) do
+      {:ok, exists?} -> exists?
+      {:error, err} ->
+        Logger.error("[record_present?/2]: error - #{Utils.to_string(err)}")
+        false
+    end
   end
 
   def get_a_records(zone_id) do
     Logger.notice("[get_a_records]: all - zone_id='#{zone_id}'")
 
-    case CloudflareApi.DnsRecords.list(client(), zone_id) do
+    case cloudflare_client().list_a_records(client(), zone_id) do
       {:ok, records} ->
         records
 
@@ -34,9 +36,11 @@ defmodule DomainNameOperator.CloudflareOps do
   def get_a_records(zone_id, host, domain) do
     case Cache.get_records(host) do
       nil ->
-        Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
+        Logger.notice(
+          "[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'"
+        )
 
-        case CloudflareApi.DnsRecords.list_for_host_domain(client(), zone_id, host, domain) do
+        case cloudflare_client().list_a_records_for_host_domain(client(), zone_id, host, domain) do
           {:ok, records} ->
             # Logger.info(__ENV__, "Adding records to cache")
             Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
@@ -68,7 +72,7 @@ defmodule DomainNameOperator.CloudflareOps do
   def create_a_record(%CloudflareApi.DnsRecord{} = record) do
     Logger.notice("[create_a_record]: record='#{Utils.to_string(record)}'")
 
-    case CloudflareApi.DnsRecords.create(client(), record.zone_id, record) do
+    case cloudflare_client().create_a_record(client(), record.zone_id, record) do
       {:ok, retval} ->
         Logger.notice(
           "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
@@ -192,7 +196,7 @@ defmodule DomainNameOperator.CloudflareOps do
     Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
     Cache.delete_records(record.hostname)
 
-    CloudflareApi.DnsRecords.delete(client(), record.zone_id, record.id)
+    cloudflare_client().delete_a_record(client(), record.zone_id, record.id)
   end
 
   @doc ~S"""
@@ -244,5 +248,14 @@ defmodule DomainNameOperator.CloudflareOps do
       r.hostname == record.hostname && r.ip == record.ip &&
         r.proxied == record.proxied
     end)
+  end
+
+  defp client do
+    api_token = Application.fetch_env!(:domain_name_operator, :cloudflare_api_token)
+    cloudflare_client().new_client(api_token)
+  end
+
+  defp cloudflare_client do
+    Application.get_env(:domain_name_operator, :cloudflare_client, CloudflareClient)
   end
 end

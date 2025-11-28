@@ -4,7 +4,8 @@ config :domain_name_operator,
   cloudflare_api_token: "test-token",
   cloudflare_default_domain: "example.com",
   cloudflare_default_zone_id: "test-zone-id",
-  k8s_client: DomainNameOperator.K8sClient.Mock
+  k8s_client: DomainNameOperator.K8sClient.Mock,
+  cloudflare_client: DomainNameOperator.CloudflareClient.Mock
 
 config :logger, level: :warning
 
@@ -22,4 +23,3 @@ config :sentry,
   dsn: nil,
   environment_name: :test,
   included_environments: [:test]
-
