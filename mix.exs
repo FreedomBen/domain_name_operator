@@ -8,7 +8,8 @@ defmodule DomainNameOperator.MixProject do
       elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
       releases: releases(),
-      deps: deps()
+      deps: deps(),
+      aliases: aliases()
     ]
   end
 
@@ -46,6 +47,12 @@ defmodule DomainNameOperator.MixProject do
       domain_name_operator: [
         applications: [bonny: :permanent]
       ]
+    ]
+  end
+
+  defp aliases do
+    [
+      k8s_spec: "k8s.openapi.fetch"
     ]
   end
 end
