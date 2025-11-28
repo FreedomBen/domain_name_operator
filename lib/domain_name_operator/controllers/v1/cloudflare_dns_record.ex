@@ -655,62 +655,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   defp get_service(namespace, name) do
-    svc = %{
-      "apiVersion" => "v1",
-      "kind" => "Service",
-      "metadata" => %{
-        "name" => name,
-        "namespace" => namespace
-      }
-    }
-
-    #
-    # IMPORTANT:  We are essentially ignoring the settings in the config file
-    # that applies to k8s (not to bonny) because we couldn't get it working right.
-    # newer bonny updated k8s libs and the new one will be somewhat like what
-    # follows.  Suggest upgrading to new one and then getting the settings to work
-    # instead of trying to fix the old one.
-    #
-    # New k8s version
-    # with {:ok, conn} <- K8s.Conn.from_service_account(),
-    #     operation <- K8s.Client.get(svc),
-    #     {:ok, result} <- K8s.Client.run(conn, operation) do
-    #  {:ok, result}
-
-    Logger.debug(
-      __ENV__,
-      "Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'"
-    )
-
-    # with _conn <- K8s.Conn.from_file("~/.kube/ameelio-k8s-dev-kubeconfig.yaml"),
-    with _conn <- K8s.Conn.from_service_account(),
-         operation <- K8s.Client.get(svc),
-         # {:ok, result} <- K8s.Client.run(conn, operation) do
-         {:ok, result} <- K8s.Client.run(operation, :default) do
-      Logger.info(
-        Utils.FromEnv.mfa_str(__ENV__) <>
-          ": Retrieved Service object from k8s: #{Utils.map_to_string(result)}"
-      )
-
-      {:ok, result}
-    else
-      {:error, :not_found} ->
-        # The specified service doesn't exist!  Tell user about error somehow and stop
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error retrieving Service object from k8s.  It does not appear to exist.  Verify it is named '#{name}' and is in the namespace '#{namespace}': :service_not_found"
-        )
-
-        {:error, :service_not_found, %{namespace: namespace, name: name}}
-
-      err ->
-        Logger.error(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Error retrieving Service object from k8s: #{Utils.to_string(err)}"
-        )
-
-        {:error, err, %{namespace: namespace, name: name}}
-    end
+    k8s_client().get_service(namespace, name)
   end
 
   def extract_domain(hostname) do
@@ -761,5 +706,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     Logger.debug(__ENV__, ": zone_id='#{zone_id}' domain='#{domain}'")
     # TODO: make sure that the `zone_name` for the `zone_id` matches `domain`
     {:ok, true}
+  end
+
+  defp k8s_client do
+    Application.get_env(:domain_name_operator, :k8s_client, DomainNameOperator.K8sClient)
   end
 end
