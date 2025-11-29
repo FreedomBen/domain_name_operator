@@ -15,12 +15,8 @@ config :logger, :console,
   metadata: [],
   color: [enabled: false]
 
-config :logger, Sentry.LoggerBackend,
-  level: :error,
-  excluded_domains: [],
-  capture_log_messages: false
-
 config :sentry,
   dsn: nil,
   environment_name: :test,
+  log_level: :warning,
   included_environments: [:test]

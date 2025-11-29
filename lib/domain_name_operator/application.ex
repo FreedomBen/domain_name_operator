@@ -7,7 +7,9 @@ defmodule DomainNameOperator.Application do
 
   @impl true
   def start(_type, _args) do
-    Logger.add_backend(Sentry.LoggerBackend)
+    if Application.get_env(:sentry, :dsn) do
+      Logger.add_backend(Sentry.LoggerBackend)
+    end
 
     children = [
       # Starts a worker by calling: DomainNameOperator.Worker.start_link(arg)
