@@ -728,10 +728,10 @@ defmodule DomainNameOperator.Utils.Number do
   import DomainNameOperator.Utils, only: [defp_testable: 2]
   import Number.Delimit
 
-  def default_int_opts(), do: [precision: 0, delimit: ",", separator: "."]
-  def default_float_opts(), do: [precision: 2, delimit: ",", separator: "."]
-  def default_intl_int_opts(), do: [precision: 0, delimit: ".", separator: ","]
-  def default_intl_float_opts(), do: [precision: 2, delimit: ".", separator: ","]
+  def default_int_opts(), do: [precision: 0, delimiter: ",", separator: "."]
+  def default_float_opts(), do: [precision: 2, delimiter: ",", separator: "."]
+  def default_intl_int_opts(), do: [precision: 0, delimiter: ".", separator: ","]
+  def default_intl_float_opts(), do: [precision: 2, delimiter: ".", separator: ","]
 
   @spec format(number :: Number.t()) :: String.t()
   def format(number, opts \\ [])

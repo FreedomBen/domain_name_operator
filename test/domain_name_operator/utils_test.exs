@@ -122,5 +122,26 @@ defmodule DomainNameOperator.UtilsTest do
       refute Utils.true_or_explicitly_false?(false)
     end
   end
-end
 
+  describe "inspect_format/2 and inspect/3" do
+    test "inspect_format/2 returns expected keys" do
+      opts = Utils.inspect_format(false, 10)
+      assert Keyword.has_key?(opts, :syntax_colors)
+      assert Keyword.fetch!(opts, :structs) == false
+      assert Keyword.fetch!(opts, :limit) == 10
+    end
+
+    test "inspect/3 returns a string representation" do
+      s = Utils.inspect(%{a: 1}, true, 5)
+      assert is_binary(s)
+      assert String.contains?(s, "a")
+    end
+  end
+
+  describe "trunc_str/2" do
+    test "truncates strings longer than given length" do
+      assert Utils.trunc_str("abcdef", 3) == "abc"
+      assert Utils.trunc_str("ab", 5) == "ab"
+    end
+  end
+end

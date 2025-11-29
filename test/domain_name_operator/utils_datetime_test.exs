@@ -20,5 +20,15 @@ defmodule DomainNameOperator.UtilsDateTimeTest do
     assert DateUtils.expired?(past, now)
     refute DateUtils.expired?(future, now)
   end
-end
 
+  test "utc_now_trunc/0 returns time truncated to seconds" do
+    t = DateUtils.utc_now_trunc()
+    assert t.microsecond == {0, 0}
+  end
+
+  test "distant_future/0 returns a time far in the future" do
+    future = DateUtils.distant_future()
+    now = DateTime.utc_now()
+    assert DateTime.compare(future, now) == :gt
+  end
+end

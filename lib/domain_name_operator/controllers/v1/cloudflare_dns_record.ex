@@ -99,7 +99,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   use Bonny.Controller
 
   alias CloudflareApi.DnsRecord
-  alias DomainNameOperator.{Utils, CloudflareOps}
+  alias DomainNameOperator.Utils
 
   alias DomainNameOperator.Utils.Logger
   alias DomainNameOperator.ProcessRecordException
@@ -172,7 +172,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     {:ok, record} = parse(cloudflarednsrecord)
 
     with {:ok, record} <- parse(cloudflarednsrecord),
-         {:ok, cf} <- CloudflareOps.delete_record(record) do
+         {:ok, cf} <- cloudflare_ops().delete_record(record) do
       Logger.info(
         Utils.FromEnv.mfa_str(__ENV__) <> ": Deleted record: cf=#{Utils.map_to_string(cf)}"
       )
@@ -211,7 +211,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
     # Parse the cloudflarednsrecord into a DNS record
     with {:ok, record} <- parse(cloudflarednsrecord),
-         {:ok, cf} <- CloudflareOps.add_or_update_record(record) do
+         {:ok, cf} <- cloudflare_ops().add_or_update_record(record) do
       Logger.info(
         Utils.FromEnv.mfa_str(__ENV__) <>
           ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
@@ -282,7 +282,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       raise ProcessRecordException, msg: msg
     rescue
       ex ->
-        case Sentry.capture_exception(ex, stacktrace: __STACKTRACE__, tags: tags, extra: extra) do
+        case sentry_client().capture_exception(ex,
+               stacktrace: __STACKTRACE__,
+               tags: tags,
+               extra: extra
+             ) do
           {:ok, _task} ->
             ex
 
@@ -710,5 +714,17 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
   defp k8s_client do
     Application.get_env(:domain_name_operator, :k8s_client, DomainNameOperator.K8sClient)
+  end
+
+  defp sentry_client do
+    Application.get_env(
+      :domain_name_operator,
+      :sentry_client,
+      DomainNameOperator.SentryClient
+    )
+  end
+
+  defp cloudflare_ops do
+    Application.get_env(:domain_name_operator, :cloudflare_ops, DomainNameOperator.CloudflareOps)
   end
 end

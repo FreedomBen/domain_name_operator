@@ -5,7 +5,8 @@ config :domain_name_operator,
   cloudflare_default_domain: "example.com",
   cloudflare_default_zone_id: "test-zone-id",
   k8s_client: DomainNameOperator.K8sClient.Mock,
-  cloudflare_client: DomainNameOperator.CloudflareClient.Mock
+  cloudflare_client: DomainNameOperator.CloudflareClient.Mock,
+  sentry_client: DomainNameOperator.SentryClient.Test
 
 config :logger, level: :warning
 
