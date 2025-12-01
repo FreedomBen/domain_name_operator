@@ -46,4 +46,3 @@ defmodule DomainNameOperator.CacheTest do
     assert Cache.get_records(hostname) == nil
   end
 end
-

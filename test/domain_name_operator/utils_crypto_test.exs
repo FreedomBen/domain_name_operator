@@ -18,4 +18,3 @@ defmodule DomainNameOperator.UtilsCryptoTest do
     refute h1 == Crypto.hash_token("different")
   end
 end
-

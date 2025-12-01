@@ -55,4 +55,3 @@ defmodule DomainNameOperator.K8sOpenapi do
     }
   end
 end
-

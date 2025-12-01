@@ -20,4 +20,3 @@ defmodule DomainNameOperator.SentryClient do
     Sentry.capture_exception(exception, options)
   end
 end
-

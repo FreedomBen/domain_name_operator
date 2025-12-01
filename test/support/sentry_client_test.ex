@@ -26,4 +26,3 @@ defmodule DomainNameOperator.SentryClient.FailingTest do
     {:error, :failed_to_send}
   end
 end
-

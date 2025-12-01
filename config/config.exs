@@ -1,39 +1,22 @@
 import Config
 
-# There are TWO places to configure k8s.  Bonny needs kube config, and so does the k8s
-# mix package.
-
-# The default k8s config uses the service account in the Pod, so leave this out
-# config :k8s,
-#   clusters: %{
-#     default: %{ # `default` here must match `cluster_name` below
-#       conn: "~/.kube/config"
-#     }
-#   }
-
 config :bonny,
-  # Add each CRD Controller module for this operator to load here
-  controllers: [
-    DomainNameOperator.Controller.V1.CloudflareDnsRecord
-  ],
-
-  # Your kube config file here
-  # kubeconf_file: "~/.kube/config",
-  #kubeconf_file: "~/.kube/ameelio-k8s-dev-kubeconfig.yaml",
-
-  # Bonny will default to using your current-context, optionally set cluster: and user: here.
-  # kubeconf_opts: [cluster: "my-cluster", user: "my-user"]
-  kubeconf_opts: [],
-
+  group: "domain-name-operator.tamx.org",
+  get_conn: {DomainNameOperator.K8sConn, :get!, []},
+  operator_name: "domain-name-operator",
+  service_account_name: "domain-name-operator",
+  labels: %{"k8s-app" => "domain-name-operator"},
   resources: %{
     limits: %{cpu: "200m", memory: "200Mi"},
     requests: %{cpu: "200m", memory: "200Mi"}
   }
 
+config :domain_name_operator, DomainNameOperator.K8sConn, :service_account
+config :domain_name_operator, :enable_operator, true
+
 config :logger, :console,
- format: "$time $metadata[$level] $message\n",
- # metadata: [:error_code, :file],
- metadata: [:error_code],
- color: [enabled: true]
+  format: "$time $metadata[$level] $message\n",
+  metadata: [:error_code],
+  color: [enabled: true]
 
 import_config "#{config_env()}.exs"

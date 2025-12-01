@@ -7,4 +7,3 @@ defmodule DomainNameOperator.UtilsIPv4Test do
     assert IPv4.to_s({127, 0, 0, 1}) == "127.0.0.1"
   end
 end
-

@@ -29,7 +29,9 @@ defmodule Mix.Tasks.K8s.Openapi.Fetch do
         Mix.shell().info("Saved Kubernetes OpenAPI spec to #{dest_path}")
 
       {:ok, {{_, status, _}, _headers, body}} ->
-        Mix.raise("Failed to download OpenAPI spec. HTTP status: #{status}. Body: #{inspect(body)}")
+        Mix.raise(
+          "Failed to download OpenAPI spec. HTTP status: #{status}. Body: #{inspect(body)}"
+        )
 
       {:error, reason} ->
         Mix.raise("Failed to download OpenAPI spec: #{inspect(reason)}")
@@ -42,4 +44,3 @@ defmodule Mix.Tasks.K8s.Openapi.Fetch do
     :ok
   end
 end
-

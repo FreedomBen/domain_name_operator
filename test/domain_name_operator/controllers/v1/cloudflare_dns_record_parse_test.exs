@@ -75,7 +75,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordParseTest do
         "spec" => %{
           "namespace" => "default",
           "serviceName" => "existing-service",
-          "hostName" => "app", # no domain component
+          # no domain component
+          "hostName" => "app",
           "proxied" => true,
           "zoneId" => "zone-123"
         }
@@ -174,4 +175,3 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordParseTest do
     end
   end
 end
-

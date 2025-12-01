@@ -2,6 +2,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordEventsTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
+  alias Bonny.Axn
   alias CloudflareApi.DnsRecord
   alias DomainNameOperator.Controller.V1.CloudflareDnsRecord
 
@@ -17,6 +18,16 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordEventsTest do
       send(self(), {:delete_record, record})
       {:ok, %{id: "cf-deleted", hostname: record.hostname}}
     end
+  end
+
+  defmodule CloudflareOpsDeleteFailureStub do
+    @moduledoc false
+
+    def add_or_update_record(%DnsRecord{} = record) do
+      {:ok, %{id: "cf-created", hostname: record.hostname}}
+    end
+
+    def delete_record(_record), do: {:error, :api_failure}
   end
 
   setup do
@@ -63,6 +74,35 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordEventsTest do
     end
   end
 
+  describe "handle_event/2 pipeline integration" do
+    test "reconcile emits a success event and reconciles the DNS record", %{payload: payload} do
+      Application.put_env(:domain_name_operator, :cloudflare_ops, CloudflareOpsEventStub)
+
+      axn =
+        payload
+        |> axn_for(:reconcile)
+        |> CloudflareDnsRecord.handle_event([])
+
+      assert Enum.any?(axn.events, &(&1.reason == "CloudflareDnsRecordSynced"))
+      assert_receive {:add_or_update_record, %DnsRecord{}}
+    end
+
+    test "delete failure emits a warning event", %{payload: payload} do
+      Application.put_env(
+        :domain_name_operator,
+        :cloudflare_ops,
+        CloudflareOpsDeleteFailureStub
+      )
+
+      axn =
+        payload
+        |> axn_for(:delete)
+        |> CloudflareDnsRecord.handle_event([])
+
+      assert Enum.any?(axn.events, &(&1.reason == "CloudflareDnsRecordDeleteFailed"))
+    end
+  end
+
   defp base_payload do
     %{
       "metadata" => %{
@@ -78,5 +118,15 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordEventsTest do
         "proxied" => true
       }
     }
+  end
+
+  defp axn_for(payload, action) do
+    Axn.new!(
+      action: action,
+      resource: payload,
+      conn: DomainNameOperator.K8sConn.get!(),
+      controller: {DomainNameOperator.Controller.V1.CloudflareDnsRecord, []},
+      operator: DomainNameOperator.Operator
+    )
   end
 end

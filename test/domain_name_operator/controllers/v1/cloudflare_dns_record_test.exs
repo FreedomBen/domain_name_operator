@@ -12,7 +12,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordTest do
           "kubectl.kubernetes.io/last-applied-configuration" => %{
             "apiVersion" => "hello-operator.example.com/v1",
             "kind" => "Greeting",
-            "metadata" => %{"annotations" => %{}, "name" => "hello-server", "namespace" => "default"},
+            "metadata" => %{
+              "annotations" => %{},
+              "name" => "hello-server",
+              "namespace" => "default"
+            },
             "spec" => %{"greeting" => "Howdy"}
           }
         },
@@ -22,7 +26,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordTest do
         "name" => "some-service-dns-record",
         "namespace" => "default",
         "resourceVersion" => "1359609",
-        "selfLink" => "/apis/hello-operator.example.com/v1/namespaces/default/greetings/hello-server",
+        "selfLink" =>
+          "/apis/hello-operator.example.com/v1/namespaces/default/greetings/hello-server",
         "uid" => "daa7e59b-0c56-11e9-bd27-025000000001"
       },
       "spec" => %{
@@ -38,18 +43,22 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordTest do
 
   def example_payload(metadata_overrides, spec_overrides) do
     %{
-      "metadata" => %{
-        "name" => "Jack Porter",
-        "namespace" => "revenge"
-      } |> Map.merge(metadata_overrides),
-      "spec" => %{
-        "namespace" => "domain-name-operator-staging",
-        "serviceName" => "Howdy",
-        "hostName" => "domain-name-operator-staging",
-        "domain" => "ameelio.xyz",
-        "zoneId" => "abcdefg",
-        "proxied" => true
-      } |> Map.merge(spec_overrides)
+      "metadata" =>
+        %{
+          "name" => "Jack Porter",
+          "namespace" => "revenge"
+        }
+        |> Map.merge(metadata_overrides),
+      "spec" =>
+        %{
+          "namespace" => "domain-name-operator-staging",
+          "serviceName" => "Howdy",
+          "hostName" => "domain-name-operator-staging",
+          "domain" => "ameelio.xyz",
+          "zoneId" => "abcdefg",
+          "proxied" => true
+        }
+        |> Map.merge(spec_overrides)
     }
   end
 

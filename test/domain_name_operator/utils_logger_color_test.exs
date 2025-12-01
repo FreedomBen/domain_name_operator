@@ -10,4 +10,3 @@ defmodule DomainNameOperator.UtilsLoggerColorTest do
     assert LoggerColor.debug() == :cyan
   end
 end
-

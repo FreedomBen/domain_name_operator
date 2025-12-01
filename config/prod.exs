@@ -1,10 +1,5 @@
 import Config
 
-config :k8s,
-  clusters: %{
-    default: %{}
-  }
-
 # config :logger, level: :info
 config :logger, level: :debug
 
