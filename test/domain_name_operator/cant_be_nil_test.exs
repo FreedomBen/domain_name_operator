@@ -15,4 +15,3 @@ defmodule DomainNameOperator.CantBeNilTest do
     assert ex.message =~ "value was set to nil"
   end
 end
-

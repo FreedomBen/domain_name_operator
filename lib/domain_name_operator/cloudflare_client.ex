@@ -59,4 +59,3 @@ defmodule DomainNameOperator.CloudflareClient do
     CloudflareApi.DnsRecords.delete(client, zone_id, id)
   end
 end
-

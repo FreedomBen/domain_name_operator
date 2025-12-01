@@ -6,7 +6,7 @@ defmodule DomainNameOperator.UtilsNumberTest do
   describe "format/2 and format_us/2" do
     test "formats integers with US defaults" do
       assert Num.format(1000) == "1,000"
-      assert Num.format_us(1234567) == "1,234,567"
+      assert Num.format_us(1_234_567) == "1,234,567"
     end
 
     test "formats floats with US defaults" do

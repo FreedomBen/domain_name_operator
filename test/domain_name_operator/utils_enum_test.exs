@@ -11,4 +11,3 @@ defmodule DomainNameOperator.UtilsEnumTest do
     refute UtilsEnum.none?([1, 2, 3], fn x -> x == 2 end)
   end
 end
-

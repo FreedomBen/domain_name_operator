@@ -5,7 +5,7 @@ defmodule DomainNameOperator.MixProject do
     [
       app: :domain_name_operator,
       version: "0.1.0",
-      elixir: "~> 1.13",
+      elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       releases: releases(),
@@ -25,21 +25,15 @@ defmodule DomainNameOperator.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:bonny, "~> 0.4"},
-      # {:bonny, "~> 0.5"},
-      # {:bonny, path: "/home/ben/gitclone/bonny2"},
-      {:tesla, "~> 1.4"},
-      {:hackney, "~> 1.17"},
-      # {:cloudflare_api, "~> 0.0"},
+      {:bonny, "~> 1.4"},
+      {:k8s, "~> 2.8"},
+      {:tesla, "~> 1.15"},
+      {:hackney, "~> 1.25"},
       {:cloudflare_api, "~> 0.4"},
-      {:iptools, "~> 0.0"},
-      # {:k8s, "~> 1.1.3"},
-      {:number, "~> 1.0.3"},
-      {:sentry, "~> 8.0"},
-      {:jason, "~> 1.1"}
-      # {:hackney, "~> 1.8"},
-      # if you are using plug_cowboy
-      # {:plug_cowboy, "~> 2.3"}
+      {:iptools, "~> 0.0.5"},
+      {:number, "~> 1.0.5"},
+      {:sentry, "~> 11.0"},
+      {:jason, "~> 1.4"}
     ]
   end
 

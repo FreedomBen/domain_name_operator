@@ -30,6 +30,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordProcessTest do
   setup do
     Application.put_env(:domain_name_operator, :k8s_client, DomainNameOperator.K8sClient.Mock)
     Application.put_env(:domain_name_operator, :cloudflare_ops, DomainNameOperator.CloudflareOps)
+
     Application.put_env(
       :domain_name_operator,
       :sentry_client,

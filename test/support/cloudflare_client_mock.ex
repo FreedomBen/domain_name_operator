@@ -77,4 +77,3 @@ defmodule DomainNameOperator.CloudflareClient.Mock do
     {:ok, %{}}
   end
 end
-

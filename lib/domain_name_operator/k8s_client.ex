@@ -43,10 +43,10 @@ defmodule DomainNameOperator.K8sClient do
       "Retrieving Service object from k8s: name='#{name}' namespace='#{namespace}'"
     )
 
-    # See notes in original controller code about using service account vs kubeconfig.
-    with _conn <- K8s.Conn.from_service_account(),
-         operation <- K8s.Client.get(svc),
-         {:ok, result} <- K8s.Client.run(operation, :default) do
+    conn = DomainNameOperator.K8sConn.get!()
+
+    with operation <- K8s.Client.get(svc),
+         {:ok, result} <- K8s.Client.run(conn, operation) do
       Logger.info(
         Utils.FromEnv.mfa_str(__ENV__) <>
           ": Retrieved Service object from k8s: #{Utils.map_to_string(result)}"
@@ -72,4 +72,3 @@ defmodule DomainNameOperator.K8sClient do
     end
   end
 end
-

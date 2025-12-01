@@ -96,13 +96,16 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #   }
   #
 
-  use Bonny.Controller
+  use Bonny.ControllerV2
 
   alias CloudflareApi.DnsRecord
   alias DomainNameOperator.Utils
 
   alias DomainNameOperator.Utils.Logger
   alias DomainNameOperator.ProcessRecordException
+
+  step(Bonny.Pluggable.SkipObservedGenerations)
+  step(:handle_event)
 
   @group "domain-name-operator.tamx.org"
   @version "v1"
@@ -115,16 +118,62 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     shortNames: ["dns"]
   }
 
-  # @rule {"", ["pods", "configmap"], ["*"]}
-  # @rule {"", ["secrets"], ["create"]}
+  @doc false
+  def api_group, do: @group
 
-  @rule {"", ["services"], ["*"]}
+  @doc false
+  def api_version, do: "#{@group}/#{@version}"
+
+  @doc false
+  def crd_scope, do: @scope
+
+  @doc false
+  def crd_names, do: @names
+
+  @impl Bonny.ControllerV2
+  def rbac_rules do
+    [to_rbac_rule({"", ["services"], ["*"]})]
+  end
+
+  @doc false
+  def handle_event(%Bonny.Axn{action: action, resource: resource} = axn, _opts)
+      when action in [:add, :modify, :reconcile] do
+    case process_record(resource) do
+      {:ok, _record} ->
+        success_event(axn,
+          reason: "CloudflareDnsRecordSynced",
+          message: "Cloudflare DNS record reconciled successfully."
+        )
+
+      {:error, reason} ->
+        failure_event(axn,
+          reason: "CloudflareDnsRecordFailed",
+          message: "Failed to reconcile Cloudflare DNS record: #{inspect(reason)}"
+        )
+    end
+  end
+
+  def handle_event(%Bonny.Axn{action: :delete, resource: resource} = axn, _opts) do
+    case delete(resource) do
+      {:ok, _record} ->
+        success_event(axn,
+          reason: "CloudflareDnsRecordDeleted",
+          message: "Cloudflare DNS record deleted successfully."
+        )
+
+      {:error, reason} ->
+        failure_event(axn,
+          reason: "CloudflareDnsRecordDeleteFailed",
+          message: "Failed to delete Cloudflare DNS record: #{inspect(reason)}"
+        )
+    end
+  end
 
   @doc """
-  Handles an `ADDED` event
+  Handles an `ADDED` event. Kept for backwards-compatible direct usage and
+  exercised heavily by the test suite.
   """
   @spec add(map()) :: :ok | {:ok, any()} | {:error, any()}
-  @impl Bonny.Controller
   def add(%{} = cloudflarednsrecord) do
     Logger.info(
       IO.ANSI.format([
@@ -138,10 +187,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   @doc """
-  Handles a `MODIFIED` event
+  Handles a `MODIFIED` event.
   """
   @spec modify(map()) :: :ok | {:ok, any()} | {:error, any()}
-  @impl Bonny.Controller
   def modify(%{} = cloudflarednsrecord) do
     Logger.info(
       IO.ANSI.format([
@@ -155,10 +203,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   @doc """
-  Handles a `DELETED` event
+  Handles a `DELETED` event.
   """
   @spec delete(map()) :: :ok | {:ok, any()} | {:error, any()}
-  @impl Bonny.Controller
   def delete(%{} = cloudflarednsrecord) do
     Logger.info(
       IO.ANSI.format([
@@ -182,7 +229,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       err ->
         Utils.Logger.error(
           __ENV__,
-          "Error deleting record: err='#{err}' record=#{Utils.map_to_string(record)}"
+          "Error deleting record: err='#{Utils.to_string(err)}' record=#{Utils.map_to_string(record)}"
         )
 
         handle_process_record_error(err, cloudflarednsrecord)
@@ -193,7 +240,6 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   Called periodically for each existing CustomResource to allow for reconciliation.
   """
   @spec reconcile(map()) :: :ok | {:ok, any()} | {:error, any()}
-  @impl Bonny.Controller
   def reconcile(%{} = cloudflarednsrecord) do
     Logger.info(
       IO.ANSI.format([
@@ -434,20 +480,6 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   #   }
   #
 
-  defp crd_to_cloudflare_record(%{
-         "metadata" => %{"name" => _name},
-         "spec" => %{
-           "namespace" => _ns,
-           "serviceName" => _service_name,
-           "hostName" => _hostname,
-           "domain" => _domain,
-           "zoneId" => _zone_id,
-           "proxied" => _proxied
-         }
-       }) do
-    Logger.debug(__ENV__, "crd_to_cloudflare_record: (todo addme)")
-  end
-
   def default_zone_id do
     case Application.fetch_env!(:domain_name_operator, :cloudflare_default_zone_id) do
       z when is_binary(z) -> z
@@ -473,7 +505,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
             "zoneId" => zone_id,
             "proxied" => proxied
           }
-        } = record
+        }
       ) do
     Logger.debug(
       __ENV__,
@@ -520,7 +552,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
             "namespace" => _ns,
             "serviceName" => _service_name,
             "hostName" => hostname,
-            "proxied" => proxied
+            "proxied" => _proxied
           }
         } = record
       ) do
@@ -538,7 +570,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
           "spec" => %{
             "serviceName" => _service_name,
             "hostName" => _hostname,
-            "proxied" => proxied
+            "proxied" => _proxied
           }
         } = record
       ) do
@@ -550,7 +582,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   # Without proxied, will default to false
   def parse(
         %{
-          "metadata" => %{"name" => _name, "namespace" => ns},
+          "metadata" => %{"name" => _name, "namespace" => _ns},
           "spec" => %{
             "serviceName" => _service_name,
             "hostName" => _hostname
@@ -595,14 +627,16 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   # For multiple IP addresses, especially now that DO added IPv6 support
-  defp parse_svc_ip(%{
-         "status" =>
-           %{
-             "loadBalancer" => %{
-               "ingress" => ip_addrs
-             }
-           } = status
-       } = service) do
+  defp parse_svc_ip(
+         %{
+           "status" =>
+             %{
+               "loadBalancer" => %{
+                 "ingress" => ip_addrs
+               }
+             } = status
+         } = service
+       ) do
     Logger.debug(
       __ENV__,
       "parse_svc_ip: Parsing service with multiple IP addresses.  Looking for first IPv4 address.  status='#{Utils.map_to_string(status)}'"

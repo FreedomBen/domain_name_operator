@@ -21,4 +21,3 @@ defmodule DomainNameOperator.K8sOpenapiTest do
     assert ingress["ip"] == "198.51.100.5"
   end
 end
-

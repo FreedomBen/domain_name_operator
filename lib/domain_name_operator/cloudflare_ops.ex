@@ -13,7 +13,9 @@ defmodule DomainNameOperator.CloudflareOps do
     Logger.notice("[record_present?]:  zone_id='#{zone_id}', hostname='#{hostname}'")
 
     case cloudflare_client().hostname_exists?(client(), zone_id, hostname) do
-      {:ok, exists?} -> exists?
+      {:ok, exists?} ->
+        exists?
+
       {:error, err} ->
         Logger.error("[record_present?/2]: error - #{Utils.to_string(err)}")
         false
@@ -36,9 +38,7 @@ defmodule DomainNameOperator.CloudflareOps do
   def get_a_records(zone_id, host, domain) do
     case Cache.get_records(host) do
       nil ->
-        Logger.notice(
-          "[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'"
-        )
+        Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
 
         case cloudflare_client().list_a_records_for_host_domain(client(), zone_id, host, domain) do
           {:ok, records} ->
