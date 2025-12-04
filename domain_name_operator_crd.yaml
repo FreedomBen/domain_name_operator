@@ -39,4 +39,9 @@ spec:
                   type: string
                 proxied:
                   type: boolean
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      subresources:
+        status: {}
       additionalPrinterColumns: []
