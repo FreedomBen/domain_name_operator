@@ -12,12 +12,18 @@ defmodule DomainNameOperator.CloudflareOps do
   def record_present?(zone_id, hostname) do
     Logger.notice("[record_present?]:  zone_id='#{zone_id}', hostname='#{hostname}'")
 
-    case cloudflare_client().hostname_exists?(client(), zone_id, hostname) do
-      {:ok, exists?} ->
-        exists?
+    with {:ok, zone_id} <- require_zone_id(zone_id) do
+      case cloudflare_client().hostname_exists?(client(), zone_id, hostname) do
+        {:ok, exists?} ->
+          exists?
 
-      {:error, err} ->
-        Logger.error("[record_present?/2]: error - #{Utils.to_string(err)}")
+        {:error, err} ->
+          Logger.error("[record_present?/2]: error - #{Utils.to_string(err)}")
+          false
+      end
+    else
+      {:error, :missing_zone_id} ->
+        Logger.error("[record_present?/2]: missing zone id for hostname '#{hostname}'")
         false
     end
   end
@@ -25,64 +31,100 @@ defmodule DomainNameOperator.CloudflareOps do
   def get_a_records(zone_id) do
     Logger.notice("[get_a_records]: all - zone_id='#{zone_id}'")
 
-    case cloudflare_client().list_a_records(client(), zone_id) do
-      {:ok, records} ->
-        records
+    with {:ok, zone_id} <- require_zone_id(zone_id) do
+      case cloudflare_client().list_a_records(client(), zone_id) do
+        {:ok, records} ->
+          records
 
-      err ->
-        Logger.error("[get_a_records/0 all]: error - #{Utils.to_string(err)}")
+        err ->
+          Logger.error("[get_a_records/0 all]: error - #{Utils.to_string(err)}")
+          []
+      end
+    else
+      {:error, :missing_zone_id} ->
+        Logger.error("[get_a_records/0 all]: missing zone id; returning empty list")
         []
     end
   end
 
   def get_a_records(zone_id, host, domain) do
-    case Cache.get_records(host) do
-      nil ->
-        Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
+    with {:ok, zone_id} <- require_zone_id(zone_id) do
+      case Cache.get_records(host) do
+        nil ->
+          Logger.notice(
+            "[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'"
+          )
 
-        case cloudflare_client().list_a_records_for_host_domain(client(), zone_id, host, domain) do
-          {:ok, records} ->
-            # Logger.info(__ENV__, "Adding records to cache")
-            Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
-            Cache.add_records(host, records)
-            records
+          case cloudflare_client().list_a_records_for_host_domain(client(), zone_id, host, domain) do
+            {:ok, records} ->
+              # Logger.info(__ENV__, "Adding records to cache")
+              Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
+              Cache.add_records(host, records)
+              records
 
-          err ->
-            Logger.error("[get_a_records/1 hostname]: error - #{Utils.to_string(err)}")
-            IO.inspect(err)
-            []
-        end
+            err ->
+              Logger.error("[get_a_records/1 hostname]: error - #{Utils.to_string(err)}")
+              IO.inspect(err)
+              []
+          end
 
-      records ->
-        Logger.info(__ENV__, "Serving hostname '#{host}' records from cache")
-        records
+        records ->
+          Logger.info(__ENV__, "Serving hostname '#{host}' records from cache")
+          records
+      end
+    else
+      {:error, :missing_zone_id} ->
+        Logger.error(
+          "[get_a_records/3]: missing zone id for host='#{host}', domain='#{domain}'; returning empty list"
+        )
+
+        []
     end
   end
 
   def relevant_a_records(zone_id, host, domain) do
     Logger.debug("[relevant_a_records]: zone_id='#{zone_id}' host='#{host}' domain='#{domain}'")
 
-    get_a_records(zone_id, host, domain)
-    |> Map.get("status")
-    |> Map.get("addresses")
-    |> Enum.filter(fn a -> a["type"] == "ExternalIP" end)
-    |> List.flatten()
+    case get_a_records(zone_id, host, domain) do
+      %{"status" => %{"addresses" => addresses}} ->
+        addresses
+        |> Enum.filter(fn a -> a["type"] == "ExternalIP" end)
+        |> List.flatten()
+
+      other ->
+        Logger.error(
+          "[relevant_a_records]: expected service-like map but received '#{Utils.to_string(other)}'"
+        )
+
+        []
+    end
   end
 
   def create_a_record(%CloudflareApi.DnsRecord{} = record) do
     Logger.notice("[create_a_record]: record='#{Utils.to_string(record)}'")
 
-    case cloudflare_client().create_a_record(client(), record.zone_id, record) do
-      {:ok, retval} ->
-        Logger.notice(
-          "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
+    with {:ok, zone_id} <- require_zone_id(record.zone_id) do
+      record = ensure_zone_id(record, zone_id)
+
+      case cloudflare_client().create_a_record(client(), zone_id, record) do
+        {:ok, retval} ->
+          Logger.notice(
+            "[create_a_records/2]: Created A record.  Cloudflare response: #{Utils.to_string(retval)}"
+          )
+
+          {:ok, retval}
+
+        {:error, errs} ->
+          Logger.error("[create_a_records/2]: error - #{Utils.to_string(errs)}")
+          {:error, errs}
+      end
+    else
+      {:error, :missing_zone_id} = err ->
+        Logger.error(
+          "[create_a_records/2]: missing zone id for record='#{Utils.to_string(record)}'"
         )
 
-        {:ok, retval}
-
-      {:error, errs} ->
-        Logger.error("[create_a_records/2]: error - #{Utils.to_string(errs)}")
-        {:error, errs}
+        err
     end
   end
 
@@ -114,40 +156,50 @@ defmodule DomainNameOperator.CloudflareOps do
     # record will exist for any given hostname
     # First create new record, then delete old record
 
-    prev_recs = get_a_records(record.zone_id, record.hostname, record.zone_name)
+    with {:ok, zone_id} <- require_zone_id(record.zone_id) do
+      record = ensure_zone_id(record, zone_id)
+      prev_recs = get_a_records(zone_id, record.hostname, record.zone_name)
 
-    Logger.info(
-      "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
-        "zone_id='#{record.zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}', proxied='#{record.proxied}': " <>
-        Utils.to_string(prev_recs)
-    )
+      Logger.info(
+        "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
+          "zone_id='#{zone_id}', hostname='#{record.hostname}', zone_name='#{record.zone_name}', proxied='#{record.proxied}': " <>
+          Utils.to_string(prev_recs)
+      )
 
-    cond do
-      record_exists?(prev_recs, record) ->
-        Logger.info(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": Entry already exists for '" <>
-            record.hostname <>
-            "' for ip '" <> record.ip <> "':  record: " <> Utils.to_string(record)
+      cond do
+        record_exists?(prev_recs, record) ->
+          Logger.info(
+            Utils.FromEnv.mfa_str(__ENV__) <>
+              ": Entry already exists for '" <>
+              record.hostname <>
+              "' for ip '" <> record.ip <> "':  record: " <> Utils.to_string(record)
+          )
+
+          {:ok, record}
+
+        true ->
+          Logger.debug(
+            Utils.FromEnv.mfa_str(__ENV__) <>
+              ": No entry exists for '" <>
+              record.hostname <>
+              "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
+          )
+
+          with :ok <- delete_records(prev_recs, :delete_all_matching),
+               {:ok, retval} <- create_a_record(record) do
+            {:ok, retval}
+          else
+            {:error, error} -> {:error, error}
+            :error -> {:error, :delete_records}
+          end
+      end
+    else
+      {:error, :missing_zone_id} = err ->
+        Logger.error(
+          "[add_or_update_record]: missing zone id for record='#{Utils.to_string(record)}'"
         )
 
-        {:ok, record}
-
-      true ->
-        Logger.debug(
-          Utils.FromEnv.mfa_str(__ENV__) <>
-            ": No entry exists for '" <>
-            record.hostname <>
-            "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
-        )
-
-        with :ok <- delete_records(prev_recs, :delete_all_matching),
-             {:ok, retval} <- create_a_record(record) do
-          {:ok, retval}
-        else
-          {:error, error} -> {:error, error}
-          :error -> {:error, :delete_records}
-        end
+        err
     end
   end
 
@@ -168,29 +220,34 @@ defmodule DomainNameOperator.CloudflareOps do
       "[delete_record] id is nil [1]:  multiple_match_behavior='#{multiple_match_behavior}', record='#{Utils.to_string(record)}'"
     )
 
-    zone_id = zone_id_or_default(record.zone_id)
+    with {:ok, zone_id} <- require_zone_id(record.zone_id) do
+      recs =
+        zone_id
+        |> get_a_records(record.hostname, record.zone_name)
+        |> Enum.map(&ensure_zone_id(&1, zone_id))
 
-    recs =
-      zone_id
-      |> get_a_records(record.hostname, record.zone_name)
-      |> Enum.map(&ensure_zone_id(&1, zone_id))
+      Logger.debug(
+        "[delete_record] id is nil [2]: number of matching records is '#{Enum.count(recs)}' - recs='#{Utils.to_string(recs)}"
+      )
 
-    Logger.debug(
-      "[delete_record] id is nil [2]: number of matching records is '#{Enum.count(recs)}' - recs='#{Utils.to_string(recs)}"
-    )
+      cond do
+        Enum.count(recs) == 1 ->
+          delete_record(List.first(recs), multiple_match_behavior)
 
-    cond do
-      Enum.count(recs) == 1 ->
-        delete_record(List.first(recs), multiple_match_behavior)
+        multiple_match_behavior == :delete_all_matching ->
+          delete_records(recs, multiple_match_behavior)
 
-      multiple_match_behavior == :delete_all_matching ->
-        delete_records(recs, multiple_match_behavior)
+        true ->
+          Logger.error(
+            __ENV__,
+            ": When retrieving record ID for a record that we are deleting, got either zero or more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
+          )
+      end
+    else
+      {:error, :missing_zone_id} = err ->
+        Logger.error("[delete_record]: missing zone id for record='#{Utils.to_string(record)}'")
 
-      true ->
-        Logger.error(
-          __ENV__,
-          ": When retrieving record ID for a record that we are deleting, got either zero or more than one matching record.  Because of this it's ambiguous which record should be deleted.  The only safe thing to do is delete nothing but raise an error.  If you wish to delete all matching records, either use #delete_records or pass :delete_all_matching"
-        )
+        err
     end
   end
 
@@ -198,13 +255,19 @@ defmodule DomainNameOperator.CloudflareOps do
   def delete_record(record, _multiple_match_behavior) do
     Logger.warning("[delete_record]: record='#{Utils.to_string(record)}'")
 
-    zone_id = zone_id_or_default(record.zone_id)
-    record = ensure_zone_id(record, zone_id)
+    with {:ok, zone_id} <- require_zone_id(record.zone_id) do
+      record = ensure_zone_id(record, zone_id)
 
-    Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
-    Cache.delete_records(record.hostname)
+      Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
+      Cache.delete_records(record.hostname)
 
-    cloudflare_client().delete_a_record(client(), zone_id, record.id)
+      cloudflare_client().delete_a_record(client(), zone_id, record.id)
+    else
+      {:error, :missing_zone_id} = err ->
+        Logger.error("[delete_record]: missing zone id for record='#{Utils.to_string(record)}'")
+
+        err
+    end
   end
 
   @doc ~S"""
@@ -241,8 +304,14 @@ defmodule DomainNameOperator.CloudflareOps do
   def delete_records(zone_id, host, domain) do
     Logger.warning("[delete_records]: zone_id='#{zone_id}', host='#{host}', domain='#{domain}'")
 
-    with {:ok, records} <- get_a_records(zone_id, host, domain) do
-      delete_records(records)
+    with {:ok, zone_id} <- require_zone_id(zone_id) do
+      zone_id
+      |> get_a_records(host, domain)
+      |> delete_records()
+    else
+      {:error, :missing_zone_id} = err ->
+        Logger.error("[delete_records/3]: missing zone id for host='#{host}', domain='#{domain}'")
+        err
     end
   end
 
@@ -265,6 +334,21 @@ defmodule DomainNameOperator.CloudflareOps do
 
   defp cloudflare_client do
     Application.get_env(:domain_name_operator, :cloudflare_client, CloudflareClient)
+  end
+
+  defp require_zone_id(zone_id) do
+    case zone_id_or_default(zone_id) do
+      z when is_binary(z) and z != "" ->
+        {:ok, z}
+
+      _ ->
+        Logger.error(
+          __ENV__,
+          "Missing Cloudflare zone id; set one on the record or configure a default"
+        )
+
+        {:error, :missing_zone_id}
+    end
   end
 
   defp ensure_zone_id(%CloudflareApi.DnsRecord{zone_id: zone_id} = record, _fallback)
