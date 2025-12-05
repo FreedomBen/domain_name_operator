@@ -14,7 +14,13 @@ defmodule DomainNameOperator.Cache do
 
   def add_records(hostname, records) do
     Agent.update(__MODULE__, fn state ->
-      Map.put(state, hostname, %CacheEntry{timestamp: cur_seconds(), records: records})
+      cond do
+        records == [] ->
+          Map.delete(state, hostname)
+
+        true ->
+          Map.put(state, hostname, %CacheEntry{timestamp: cur_seconds(), records: records})
+      end
     end)
   end
 
@@ -27,7 +33,12 @@ defmodule DomainNameOperator.Cache do
   def get_records(hostname) do
     Agent.get(__MODULE__, fn state ->
       cond do
-        Map.has_key?(state, hostname) && !expired?(state, hostname) -> state[hostname].records
+        Map.has_key?(state, hostname) && !expired?(state, hostname) ->
+          case state[hostname].records do
+            [] -> nil
+            records -> records
+          end
+
         true -> nil
       end
     end)

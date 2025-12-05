@@ -35,6 +35,13 @@ defmodule DomainNameOperator.CloudflareClient.Mock do
 
   @impl true
   def list_a_records_for_host_domain(_client, zone_id, host, domain) do
+    hostname =
+      if String.ends_with?(host, "." <> domain) do
+        host
+      else
+        "#{host}.#{domain}"
+      end
+
     case {host, domain} do
       {"cached-host", "example.com"} ->
         {:ok,
@@ -42,7 +49,7 @@ defmodule DomainNameOperator.CloudflareClient.Mock do
            %DnsRecord{
              id: "rec-cached",
              zone_id: zone_id,
-             hostname: "cached-host.example.com",
+             hostname: hostname,
              zone_name: "example.com",
              ip: "203.0.113.2",
              proxied: false
@@ -62,7 +69,7 @@ defmodule DomainNameOperator.CloudflareClient.Mock do
            }
          ]}
 
-      {"no-records", _} ->
+      {no_records, _} when no_records in ["no-records", "no-records.example.com"] ->
         {:ok, []}
 
       _ ->
@@ -71,7 +78,7 @@ defmodule DomainNameOperator.CloudflareClient.Mock do
            %DnsRecord{
              id: "rec-2",
              zone_id: zone_id,
-             hostname: "#{host}.#{domain}",
+             hostname: hostname,
              zone_name: domain,
              ip: "203.0.113.3",
              proxied: true

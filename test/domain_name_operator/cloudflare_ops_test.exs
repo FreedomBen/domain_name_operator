@@ -354,7 +354,7 @@ defmodule DomainNameOperator.CloudflareOpsTest do
 
       assert {:ok, _} = CloudflareOps.delete_record(record, :delete_all_matching)
 
-      assert_receive {:list_zone_id, "fallback-zone", "missing-zone"}
+      assert_receive {:list_zone_id, "fallback-zone", host} when host in ["missing-zone", "missing-zone.example.com"]
       assert_receive {:delete_zone_id, "fallback-zone", "cf-record-id"}
     end
   end

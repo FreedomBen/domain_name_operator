@@ -52,22 +52,11 @@ defmodule DomainNameOperator.CloudflareOps do
     with {:ok, zone_id} <- require_zone_id(zone_id) do
       case Cache.get_records(host) do
         nil ->
-          Logger.notice(
-            "[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'"
-          )
+          fetch_and_cache_records(zone_id, host, domain)
 
-          case cloudflare_client().list_a_records_for_host_domain(client(), zone_id, host, domain) do
-            {:ok, records} ->
-              # Logger.info(__ENV__, "Adding records to cache")
-              Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
-              Cache.add_records(host, records)
-              records
-
-            err ->
-              Logger.error("[get_a_records/1 hostname]: error - #{Utils.to_string(err)}")
-              IO.inspect(err)
-              []
-          end
+        [] ->
+          # Treat empty cache entries as a miss and refetch to see if a record now exists.
+          fetch_and_cache_records(zone_id, host, domain)
 
         records ->
           Logger.info(__ENV__, "Serving hostname '#{host}' records from cache")
@@ -159,8 +148,7 @@ defmodule DomainNameOperator.CloudflareOps do
 
     with {:ok, zone_id} <- require_zone_id(record.zone_id) do
       record = ensure_zone_id(record, zone_id)
-      host = host_for_lookup(record)
-      prev_recs = get_a_records(zone_id, host, record.zone_name)
+      prev_recs = fetch_existing_records(zone_id, record)
 
       Logger.info(
         "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
@@ -229,7 +217,7 @@ defmodule DomainNameOperator.CloudflareOps do
     with {:ok, zone_id} <- require_zone_id(record.zone_id) do
       recs =
         zone_id
-        |> get_a_records(host_for_lookup(record), record.zone_name)
+        |> fetch_existing_records(record)
         |> Enum.map(&ensure_zone_id(&1, zone_id))
 
       Logger.debug(
@@ -329,20 +317,25 @@ defmodule DomainNameOperator.CloudflareOps do
     end
   end
 
-  defp host_for_lookup(%CloudflareApi.DnsRecord{hostname: hostname, zone_name: zone_name}) do
+  defp record_lookup_hosts(%CloudflareApi.DnsRecord{hostname: hostname, zone_name: zone_name}) do
     suffix =
       case zone_name do
         z when is_binary(z) and z != "" -> "." <> z
         _ -> nil
       end
 
-    cond do
-      is_binary(hostname) && is_binary(suffix) && String.ends_with?(hostname, suffix) ->
-        String.trim_trailing(hostname, suffix)
+    trimmed =
+      case {hostname, suffix} do
+        {h, s} when is_binary(h) and is_binary(s) ->
+          if String.ends_with?(h, s), do: String.trim_trailing(h, s), else: nil
 
-      true ->
-        hostname
-    end
+        _ ->
+          nil
+      end
+
+    [hostname, trimmed]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
 
   defp event_record(original, response) do
@@ -383,6 +376,19 @@ defmodule DomainNameOperator.CloudflareOps do
   defp normalize_metadata(metadata) when is_map(metadata), do: metadata
   defp normalize_metadata(metadata) when is_list(metadata), do: Map.new(metadata)
   defp normalize_metadata(_metadata), do: %{}
+
+  defp fetch_existing_records(zone_id, %CloudflareApi.DnsRecord{} = record) do
+    record_lookup_hosts(record)
+    |> Enum.reduce_while([], fn host, _acc ->
+      recs = get_a_records(zone_id, host, record.zone_name)
+
+      if Enum.empty?(recs) do
+        {:cont, []}
+      else
+        {:halt, recs}
+      end
+    end)
+  end
 
   defp record_exists?(recs, record) do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")
@@ -447,5 +453,21 @@ defmodule DomainNameOperator.CloudflareOps do
 
   defp default_zone_id do
     Application.get_env(:domain_name_operator, :cloudflare_default_zone_id)
+  end
+
+  defp fetch_and_cache_records(zone_id, host, domain) do
+    Logger.notice("[get_a_records]: host='#{host}', domain='#{domain}', zone_id='#{zone_id}'")
+
+    case cloudflare_client().list_a_records_for_host_domain(client(), zone_id, host, domain) do
+      {:ok, records} ->
+        Logger.trace(__ENV__, "Adding records to cache for hostname '#{host}'")
+        Cache.add_records(host, records)
+        records
+
+      err ->
+        Logger.error("[get_a_records/1 hostname]: error - #{Utils.to_string(err)}")
+        IO.inspect(err)
+        []
+    end
   end
 end
