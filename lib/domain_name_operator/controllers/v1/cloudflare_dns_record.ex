@@ -118,6 +118,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     shortNames: ["dns"]
   }
   @event_message_limit 1024
+  @history_limit 10
 
   @doc false
   def api_group, do: @group
@@ -133,48 +134,59 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
   @impl Bonny.ControllerV2
   def rbac_rules do
-    [to_rbac_rule({"", ["services"], ["*"]})]
+    [
+      to_rbac_rule({"", ["services"], ["*"]}),
+      to_rbac_rule(
+        {@group, [@names.plural, "#{@names.plural}/status"],
+         ["get", "list", "watch", "update", "patch"]}
+      )
+    ]
   end
 
   @doc false
   def handle_event(%Bonny.Axn{action: action, resource: resource} = axn, _opts)
       when action in [:add, :modify, :reconcile] do
+    success_message = "Cloudflare DNS record reconciled successfully."
+
     case process_record(resource) do
-      {:ok, _record} ->
-        success_event(axn,
+      {:ok, record} ->
+        axn
+        |> put_success_status(resource, record, action,
           reason: "CloudflareDnsRecordSynced",
-          message: "Cloudflare DNS record reconciled successfully."
+          message: success_message
         )
+        |> success_event(reason: "CloudflareDnsRecordSynced", message: success_message)
 
       {:error, reason} ->
-        failure_event(axn,
-          reason: "CloudflareDnsRecordFailed",
-          message:
-            build_event_failure_message(
-              "Failed to reconcile Cloudflare DNS record",
-              reason
-            )
-        )
+        failure_message =
+          build_event_failure_message("Failed to reconcile Cloudflare DNS record", reason)
+
+        axn
+        |> put_failure_status(resource, reason, action, failure_message)
+        |> failure_event(reason: "CloudflareDnsRecordFailed", message: failure_message)
     end
   end
 
   def handle_event(%Bonny.Axn{action: :delete, resource: resource} = axn, _opts) do
+    success_message = "Cloudflare DNS record deleted successfully."
+
     case delete(resource) do
-      {:ok, _record} ->
-        success_event(axn,
+      {:ok, record} ->
+        axn
+        |> put_success_status(resource, record, :delete,
           reason: "CloudflareDnsRecordDeleted",
-          message: "Cloudflare DNS record deleted successfully."
+          message: success_message,
+          state: "absent"
         )
+        |> success_event(reason: "CloudflareDnsRecordDeleted", message: success_message)
 
       {:error, reason} ->
-        failure_event(axn,
-          reason: "CloudflareDnsRecordDeleteFailed",
-          message:
-            build_event_failure_message(
-              "Failed to delete Cloudflare DNS record",
-              reason
-            )
-        )
+        failure_message =
+          build_event_failure_message("Failed to delete Cloudflare DNS record", reason)
+
+        axn
+        |> put_failure_status(resource, reason, :delete, failure_message)
+        |> failure_event(reason: "CloudflareDnsRecordDeleteFailed", message: failure_message)
     end
   end
 
@@ -272,7 +284,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
           ": Added or updated record: cf=#{Utils.map_to_string(cf)}"
       )
 
-      {:ok, record}
+      {:ok, merge_record(record, cf)}
     else
       {:error, :no_ip, %{namespace: namespace, name: name}} ->
         parse_record_error(:no_ip, namespace, name, cloudflarednsrecord)
@@ -768,6 +780,219 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   defp cloudflare_ops do
     Application.get_env(:domain_name_operator, :cloudflare_ops, DomainNameOperator.CloudflareOps)
   end
+
+  defp put_success_status(axn, resource, record, action, opts) do
+    message = Keyword.fetch!(opts, :message)
+    reason = Keyword.get(opts, :reason, "SyncSucceeded")
+    state = Keyword.get(opts, :state, "present")
+    hostname = record_hostname(record) || resource_hostname(resource)
+    now = iso_timestamp()
+
+    axn
+    |> update_status(fn status ->
+      status
+      |> put_observed_generation(resource)
+      |> Map.put("conditions", upsert_synced_condition(status, "True", reason, message, now))
+      |> Map.put("sync", sync_success(now))
+      |> Map.put("cloudflare", cloudflare_snapshot(record, resource, hostname, state))
+      |> Map.put(
+        "history",
+        prepend_history(
+          status,
+          history_entry(action, "success", message, record, resource, hostname, state, now)
+        )
+      )
+    end)
+  end
+
+  defp put_failure_status(axn, resource, reason_term, action, message) do
+    reason = failure_condition_reason(action)
+    hostname = resource_hostname(resource)
+    now = iso_timestamp()
+
+    axn
+    |> update_status(fn status ->
+      status
+      |> put_observed_generation(resource)
+      |> Map.put("conditions", upsert_synced_condition(status, "False", reason, message, now))
+      |> Map.put("sync", sync_failure(status, now, reason_term, message))
+      |> Map.put("cloudflare", cloudflare_snapshot(nil, resource, hostname, "error"))
+      |> Map.put(
+        "history",
+        prepend_history(
+          status,
+          history_entry(action, "error", message, nil, resource, hostname, "error", now)
+        )
+      )
+    end)
+  end
+
+  defp history_entry(action, status, message, record, resource, hostname, state, timestamp) do
+    %{
+      "timestamp" => timestamp,
+      "action" => Atom.to_string(action),
+      "status" => status,
+      "message" => message
+    }
+    |> maybe_put("hostname", hostname)
+    |> maybe_put("zoneId", record_zone_id(record) || resource_zone_id(resource))
+    |> maybe_put("cloudflareRecordId", record_id(record))
+    |> maybe_put("ip", record_ip(record))
+    |> maybe_put("proxied", record_proxied(record))
+    |> maybe_put("state", state)
+  end
+
+  defp prepend_history(status, entry) do
+    status
+    |> Map.get("history", [])
+    |> List.wrap()
+    |> List.insert_at(0, entry)
+    |> Enum.take(@history_limit)
+  end
+
+  defp upsert_synced_condition(status, condition_status, reason, message, timestamp) do
+    existing =
+      status
+      |> Map.get("conditions", [])
+      |> List.wrap()
+      |> Enum.reject(&(&1["type"] == "Synced"))
+
+    [
+      %{
+        "type" => "Synced",
+        "status" => condition_status,
+        "reason" => reason,
+        "message" => message,
+        "lastTransitionTime" => timestamp
+      }
+      | existing
+    ]
+  end
+
+  defp sync_success(timestamp) do
+    %{
+      "lastAttemptedAt" => timestamp,
+      "lastSuccessfulAt" => timestamp,
+      "lastError" => nil,
+      "retryCount" => 0
+    }
+  end
+
+  defp sync_failure(status, timestamp, reason, message) do
+    retry_count = get_in(status, ["sync", "retryCount"]) || 0
+
+    %{
+      "lastAttemptedAt" => timestamp,
+      "lastSuccessfulAt" => get_in(status, ["sync", "lastSuccessfulAt"]),
+      "lastError" => %{
+        "reason" => reason_to_string(reason),
+        "message" => message
+      },
+      "retryCount" => retry_count + 1
+    }
+  end
+
+  defp reason_to_string(reason) when is_atom(reason), do: Atom.to_string(reason)
+  defp reason_to_string(reason) when is_binary(reason), do: reason
+  defp reason_to_string(reason), do: inspect(reason)
+
+  defp failure_condition_reason(:delete), do: "CloudflareDnsRecordDeleteFailed"
+  defp failure_condition_reason(_), do: "CloudflareDnsRecordFailed"
+
+  defp cloudflare_snapshot(record, resource, hostname, state) do
+    %{"state" => state}
+    |> maybe_put("hostname", hostname)
+    |> maybe_put("zoneId", record_zone_id(record) || resource_zone_id(resource))
+    |> maybe_put("recordId", record_id(record))
+    |> maybe_put("zoneName", record_zone_name(record))
+    |> maybe_put("ip", record_ip(record))
+    |> maybe_put("proxied", record_proxied(record))
+    |> maybe_put("ttl", record_ttl(record))
+  end
+
+  defp record_zone_id(%DnsRecord{zone_id: zone_id}) when is_binary(zone_id) and zone_id != "",
+    do: zone_id
+
+  defp record_zone_id(_), do: nil
+
+  defp record_zone_name(%DnsRecord{zone_name: zone_name}) when is_binary(zone_name), do: zone_name
+  defp record_zone_name(_), do: nil
+
+  defp record_id(%DnsRecord{id: id}) when is_binary(id), do: id
+  defp record_id(_), do: nil
+
+  defp record_ip(%DnsRecord{ip: ip}) when is_binary(ip), do: ip
+  defp record_ip(_), do: nil
+
+  defp record_proxied(%DnsRecord{proxied: proxied}) when is_boolean(proxied), do: proxied
+  defp record_proxied(_), do: nil
+
+  defp record_ttl(%DnsRecord{ttl: ttl}) when is_integer(ttl), do: ttl
+  defp record_ttl(_), do: nil
+
+  defp record_hostname(%DnsRecord{hostname: hostname}) when is_binary(hostname), do: hostname
+  defp record_hostname(_), do: nil
+
+  defp resource_zone_id(%{"spec" => %{"zoneId" => zone_id}}) when is_binary(zone_id),
+    do: zone_id
+
+  defp resource_zone_id(_), do: nil
+
+  defp resource_hostname(%{"spec" => %{"hostName" => hostname, "domain" => domain}})
+       when is_binary(hostname) and is_binary(domain) do
+    cond do
+      String.ends_with?(hostname, domain) -> hostname
+      true -> "#{hostname}.#{domain}"
+    end
+  end
+
+  defp resource_hostname(%{"spec" => %{"hostName" => hostname}}) when is_binary(hostname),
+    do: hostname
+
+  defp resource_hostname(_), do: nil
+
+  defp put_observed_generation(status, resource) do
+    case resource_generation(resource) do
+      nil -> status
+      generation -> Map.put(status, "observedGeneration", generation)
+    end
+  end
+
+  defp resource_generation(%{"metadata" => %{"generation" => generation}})
+       when is_integer(generation),
+       do: generation
+
+  defp resource_generation(_), do: nil
+
+  defp iso_timestamp do
+    DateTime.utc_now()
+    |> DateTime.truncate(:second)
+    |> DateTime.to_iso8601()
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp merge_record(%DnsRecord{} = record, %DnsRecord{} = returned) do
+    merged =
+      record
+      |> Map.from_struct()
+      |> Map.merge(Map.from_struct(returned), fn _k, _v1, v2 -> v2 end)
+
+    struct(DnsRecord, merged)
+  end
+
+  defp merge_record(%DnsRecord{} = record, %{} = returned) do
+    try do
+      returned
+      |> CloudflareApi.DnsRecord.from_cf_json()
+      |> merge_record(record)
+    rescue
+      _ -> record
+    end
+  end
+
+  defp merge_record(record, _returned), do: record
 
   defp build_event_failure_message(prefix, reason) do
     "#{prefix}: #{format_event_reason(reason)}"

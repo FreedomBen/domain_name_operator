@@ -41,7 +41,112 @@ spec:
                   type: boolean
             status:
               type: object
-              x-kubernetes-preserve-unknown-fields: true
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                sync:
+                  type: object
+                  properties:
+                    lastAttemptedAt:
+                      type: string
+                      format: date-time
+                    lastSuccessfulAt:
+                      type: string
+                      format: date-time
+                    lastError:
+                      type: object
+                      properties:
+                        reason:
+                          type: string
+                        message:
+                          type: string
+                    retryCount:
+                      type: integer
+                      format: int32
+                      minimum: 0
+                cloudflare:
+                  type: object
+                  properties:
+                    state:
+                      type: string
+                    zoneId:
+                      type: string
+                    zoneName:
+                      type: string
+                    recordId:
+                      type: string
+                    hostname:
+                      type: string
+                    ip:
+                      type: string
+                    proxied:
+                      type: boolean
+                    ttl:
+                      type: integer
+                      format: int32
+                history:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: object
+                    properties:
+                      timestamp:
+                        type: string
+                        format: date-time
+                      action:
+                        type: string
+                      status:
+                        type: string
+                      message:
+                        type: string
+                      cloudflareRecordId:
+                        type: string
+                      hostname:
+                        type: string
+                      zoneId:
+                        type: string
+                      ip:
+                        type: string
+                      proxied:
+                        type: boolean
+                      state:
+                        type: string
+                      ttl:
+                        type: integer
+                        format: int32
+              additionalProperties: false
       subresources:
         status: {}
-      additionalPrinterColumns: []
+      additionalPrinterColumns:
+        - name: Host
+          type: string
+          jsonPath: .status.cloudflare.hostname
+        - name: State
+          type: string
+          jsonPath: .status.cloudflare.state
+        - name: Zone
+          type: string
+          jsonPath: .status.cloudflare.zoneId
+        - name: Synced
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Synced")].status
+        - name: LastSuccess
+          type: date
+          jsonPath: .status.sync.lastSuccessfulAt
