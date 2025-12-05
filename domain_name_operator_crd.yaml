@@ -1,3 +1,7 @@
+#
+# Note:  This file is not canonical.  See k8s/prod/deploy.yaml and k8s/staging/deploy.yaml
+#
+
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
