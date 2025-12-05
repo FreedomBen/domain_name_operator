@@ -48,7 +48,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordStatusTest do
       assert get_in(status, ["cloudflare", "state"]) == "present"
       assert get_in(status, ["cloudflare", "hostname"]) == "app.example.com"
       assert get_in(status, ["cloudflare", "recordId"]) == "cf-id"
-      assert get_in(status, ["sync", "lastError"]) == nil
+      assert get_in(status, ["sync", "lastError"]) == %{}
 
       [latest | _] = status["history"]
       assert latest["status"] == "success"

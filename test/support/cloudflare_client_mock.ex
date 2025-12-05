@@ -49,6 +49,19 @@ defmodule DomainNameOperator.CloudflareClient.Mock do
            }
          ]}
 
+      {existing_host, "example.com"} when existing_host in ["existing", "existing.example.com"] ->
+        {:ok,
+         [
+           %DnsRecord{
+             id: "rec-existing",
+             zone_id: zone_id,
+             hostname: "existing.example.com",
+             zone_name: "example.com",
+             ip: "203.0.113.1",
+             proxied: true
+           }
+         ]}
+
       {"no-records", _} ->
         {:ok, []}
 

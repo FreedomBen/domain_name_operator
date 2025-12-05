@@ -1,6 +1,7 @@
 defmodule DomainNameOperator.CloudflareOps do
   alias DomainNameOperator.Utils.Logger
-  alias DomainNameOperator.{Utils, Cache}
+  alias DomainNameOperator.{Utils, Cache, Notifier}
+  alias DomainNameOperator.Notifier.Event
   alias DomainNameOperator.CloudflareClient
 
   # TODO:  Add ability to have a default zone ID since some users creating dns
@@ -158,7 +159,8 @@ defmodule DomainNameOperator.CloudflareOps do
 
     with {:ok, zone_id} <- require_zone_id(record.zone_id) do
       record = ensure_zone_id(record, zone_id)
-      prev_recs = get_a_records(zone_id, record.hostname, record.zone_name)
+      host = host_for_lookup(record)
+      prev_recs = get_a_records(zone_id, host, record.zone_name)
 
       Logger.info(
         "[add_or_update_record]: Retrieved #{Enum.count(prev_recs)} matching records from CloudFlare for " <>
@@ -178,6 +180,8 @@ defmodule DomainNameOperator.CloudflareOps do
           {:ok, record}
 
         true ->
+          action = if Enum.empty?(prev_recs), do: :created, else: :updated
+
           Logger.debug(
             Utils.FromEnv.mfa_str(__ENV__) <>
               ": No entry exists for '" <>
@@ -185,8 +189,11 @@ defmodule DomainNameOperator.CloudflareOps do
               "' for ip '" <> record.ip <> "'.  Adding one.  record: " <> Utils.to_string(record)
           )
 
-          with :ok <- delete_records(prev_recs, :delete_all_matching),
+          with :ok <- delete_records(prev_recs, :delete_all_matching, notify?: false),
                {:ok, retval} <- create_a_record(record) do
+            metadata = %{previous_records: prev_recs, response: retval}
+            notify_change(action, event_record(record, retval), metadata, [])
+
             {:ok, retval}
           else
             {:error, error} -> {:error, error}
@@ -213,9 +220,8 @@ defmodule DomainNameOperator.CloudflareOps do
   exit.  :delete_all_matching will delete all of the matching records.  :log_error
   is the default
   """
-  def delete_record(record, multiple_match_behavior \\ :log_error)
-
-  def delete_record(%CloudflareApi.DnsRecord{id: nil} = record, multiple_match_behavior) do
+  def delete_record(record, multiple_match_behavior \\ :log_error, opts \\ [])
+  def delete_record(%CloudflareApi.DnsRecord{id: nil} = record, multiple_match_behavior, opts) do
     Logger.debug(
       "[delete_record] id is nil [1]:  multiple_match_behavior='#{multiple_match_behavior}', record='#{Utils.to_string(record)}'"
     )
@@ -223,7 +229,7 @@ defmodule DomainNameOperator.CloudflareOps do
     with {:ok, zone_id} <- require_zone_id(record.zone_id) do
       recs =
         zone_id
-        |> get_a_records(record.hostname, record.zone_name)
+        |> get_a_records(host_for_lookup(record), record.zone_name)
         |> Enum.map(&ensure_zone_id(&1, zone_id))
 
       Logger.debug(
@@ -232,10 +238,10 @@ defmodule DomainNameOperator.CloudflareOps do
 
       cond do
         Enum.count(recs) == 1 ->
-          delete_record(List.first(recs), multiple_match_behavior)
+          delete_record(List.first(recs), multiple_match_behavior, opts)
 
         multiple_match_behavior == :delete_all_matching ->
-          delete_records(recs, multiple_match_behavior)
+          delete_records(recs, multiple_match_behavior, opts)
 
         true ->
           Logger.error(
@@ -252,7 +258,7 @@ defmodule DomainNameOperator.CloudflareOps do
   end
 
   # Returns {:ok, _} | {:error, errs}
-  def delete_record(record, _multiple_match_behavior) do
+  def delete_record(record, _multiple_match_behavior, opts) do
     Logger.warning("[delete_record]: record='#{Utils.to_string(record)}'")
 
     with {:ok, zone_id} <- require_zone_id(record.zone_id) do
@@ -261,7 +267,12 @@ defmodule DomainNameOperator.CloudflareOps do
       Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
       Cache.delete_records(record.hostname)
 
-      cloudflare_client().delete_a_record(client(), zone_id, record.id)
+      with {:ok, resp} = result <-
+             cloudflare_client().delete_a_record(client(), zone_id, record.id) do
+        notify_change(:deleted, record, %{response: resp}, opts)
+
+        result
+      end
     else
       {:error, :missing_zone_id} = err ->
         Logger.error("[delete_record]: missing zone id for record='#{Utils.to_string(record)}'")
@@ -280,14 +291,15 @@ defmodule DomainNameOperator.CloudflareOps do
   exit.  :delete_all_matching will delete all of the matching records.  :log_error
   is the default
   """
-  def delete_records(records, multiple_match_behavior \\ :log_error) do
+  def delete_records(records, multiple_match_behavior \\ :log_error, opts \\ [])
+  def delete_records(records, multiple_match_behavior, opts) when is_list(records) do
     Logger.debug(
       "[delete_records]: multiple_match_behavior='#{multiple_match_behavior}', records='#{Utils.to_string(records)}'"
     )
 
     success =
       records
-      |> Enum.map(fn r -> delete_record(r, multiple_match_behavior) end)
+      |> Enum.map(fn r -> delete_record(r, multiple_match_behavior, opts) end)
       |> Enum.all?(fn r ->
         case r do
           {:ok, _} -> true
@@ -301,19 +313,76 @@ defmodule DomainNameOperator.CloudflareOps do
     end
   end
 
-  def delete_records(zone_id, host, domain) do
+  def delete_records(zone_id, host, domain), do: delete_records(zone_id, host, domain, [])
+
+  def delete_records(zone_id, host, domain, opts) do
     Logger.warning("[delete_records]: zone_id='#{zone_id}', host='#{host}', domain='#{domain}'")
 
     with {:ok, zone_id} <- require_zone_id(zone_id) do
       zone_id
       |> get_a_records(host, domain)
-      |> delete_records()
+      |> delete_records(:log_error, opts)
     else
       {:error, :missing_zone_id} = err ->
         Logger.error("[delete_records/3]: missing zone id for host='#{host}', domain='#{domain}'")
         err
     end
   end
+
+  defp host_for_lookup(%CloudflareApi.DnsRecord{hostname: hostname, zone_name: zone_name}) do
+    suffix =
+      case zone_name do
+        z when is_binary(z) and z != "" -> "." <> z
+        _ -> nil
+      end
+
+    cond do
+      is_binary(hostname) && is_binary(suffix) && String.ends_with?(hostname, suffix) ->
+        String.trim_trailing(hostname, suffix)
+
+      true ->
+        hostname
+    end
+  end
+
+  defp event_record(original, response) do
+    original
+    |> resolve_response_record(response)
+    |> ensure_zone_id(original.zone_id)
+  end
+
+  defp resolve_response_record(_original, %CloudflareApi.DnsRecord{} = response), do: response
+
+  defp resolve_response_record(original, response) when is_map(response) do
+    try do
+      CloudflareApi.DnsRecord.from_cf_json(response)
+    rescue
+      _ -> original
+    end
+  end
+
+  defp resolve_response_record(original, _response), do: original
+
+  defp notify_change(action, record, metadata, opts) do
+    if Keyword.get(opts, :notify?, true) do
+      event = %Event{action: action, record: record, metadata: normalize_metadata(metadata)}
+
+      case Notifier.notify(event) do
+        :ok ->
+          :ok
+
+        {:error, reason} ->
+          Logger.error(__ENV__, "Notifier failed for #{action}: #{Utils.to_string(reason)}")
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp normalize_metadata(metadata) when is_map(metadata), do: metadata
+  defp normalize_metadata(metadata) when is_list(metadata), do: Map.new(metadata)
+  defp normalize_metadata(_metadata), do: %{}
 
   defp record_exists?(recs, record) do
     Logger.debug("[record_exists?]: record='#{Utils.to_string(record)}'")

@@ -873,7 +873,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     %{
       "lastAttemptedAt" => timestamp,
       "lastSuccessfulAt" => timestamp,
-      "lastError" => nil,
+      "lastError" => %{},
       "retryCount" => 0
     }
   end

@@ -6,6 +6,13 @@ config :domain_name_operator,
   cloudflare_default_zone_id: "test-zone-id",
   k8s_client: DomainNameOperator.K8sClient.Mock,
   cloudflare_client: DomainNameOperator.CloudflareClient.Mock,
+  notifier: DomainNameOperator.Notifier.Test,
+  slack_notifier: [
+    token: "test-slack-token",
+    channel: "#dns-test-alerts",
+    username: "domain-name-operator-test",
+    icon_emoji: ":test:"
+  ],
   sentry_client: DomainNameOperator.SentryClient.Test
 
 config :domain_name_operator,

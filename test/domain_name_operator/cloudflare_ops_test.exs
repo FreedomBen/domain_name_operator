@@ -3,6 +3,8 @@ defmodule DomainNameOperator.CloudflareOpsTest do
 
   alias DomainNameOperator.CloudflareOps
   alias DomainNameOperator.Cache
+  alias DomainNameOperator.Notifier.Event
+  alias CloudflareApi.DnsRecord
 
   setup do
     # Ensure mocks are used
@@ -11,12 +13,16 @@ defmodule DomainNameOperator.CloudflareOpsTest do
       :cloudflare_client,
       DomainNameOperator.CloudflareClient.Mock
     )
+    Application.put_env(:domain_name_operator, :notifier, DomainNameOperator.Notifier.Test)
 
     # Start cache agent if not already running
     case Process.whereis(DomainNameOperator.Cache) do
       nil -> {:ok, _pid} = Cache.start_link([])
       _pid -> :ok
     end
+
+    # Clear cache between tests to avoid cross-test contamination
+    Agent.update(DomainNameOperator.Cache, fn _ -> %{} end)
 
     :ok
   end
@@ -123,7 +129,7 @@ defmodule DomainNameOperator.CloudflareOpsTest do
   describe "add_or_update_record/1" do
     test "returns {:ok, record} when matching record already exists" do
       # existing.example.com already exists in the mock with matching ip/proxied
-      existing = %CloudflareApi.DnsRecord{
+      existing = %DnsRecord{
         id: "rec-1",
         zone_id: "zone-1",
         hostname: "existing.example.com",
@@ -141,7 +147,7 @@ defmodule DomainNameOperator.CloudflareOpsTest do
     end
 
     test "creates a new record when none exists" do
-      new_rec = %CloudflareApi.DnsRecord{
+      new_rec = %DnsRecord{
         id: nil,
         zone_id: "zone-1",
         hostname: "new-host.example.com",
@@ -152,6 +158,80 @@ defmodule DomainNameOperator.CloudflareOpsTest do
 
       assert {:ok, created} = CloudflareOps.add_or_update_record(new_rec)
       assert created.id == "created-id"
+    end
+  end
+
+  describe "notifications" do
+    test "sends :created when a brand new record is added" do
+      record = %DnsRecord{
+        id: nil,
+        zone_id: "zone-1",
+        hostname: "no-records.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.55",
+        proxied: true
+      }
+
+      assert {:ok, _} = CloudflareOps.add_or_update_record(record)
+
+      assert_receive {:notified,
+                      %Event{
+                        action: :created,
+                        record: %DnsRecord{hostname: "no-records.example.com", id: "created-id"}
+                      }}
+    end
+
+    test "sends :updated when an existing record changes" do
+      record = %DnsRecord{
+        id: nil,
+        zone_id: "zone-1",
+        hostname: "update-host.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.77",
+        proxied: true
+      }
+
+      assert {:ok, _} = CloudflareOps.add_or_update_record(record)
+
+      assert_receive {:notified,
+                      %Event{
+                        action: :updated,
+                        metadata: %{previous_records: [%DnsRecord{ip: "203.0.113.3"}]}
+                      }}
+    end
+
+    test "does not notify when nothing changes" do
+      record = %DnsRecord{
+        id: "rec-1",
+        zone_id: "zone-1",
+        hostname: "existing.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.1",
+        proxied: true
+      }
+
+      assert {:ok, _} = CloudflareOps.add_or_update_record(record)
+
+      refute_received {:notified, _}
+    end
+
+    test "sends :deleted when a record is deleted" do
+      record = %DnsRecord{
+        id: "to-delete",
+        zone_id: "zone-1",
+        hostname: "delete-me.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.99",
+        proxied: false
+      }
+
+      assert {:ok, _} = CloudflareOps.delete_record(record, :log_error)
+
+      assert_receive {:notified,
+                      %Event{
+                        action: :deleted,
+                        record: %DnsRecord{hostname: "delete-me.example.com"}
+                      }}
     end
   end
 
@@ -274,7 +354,7 @@ defmodule DomainNameOperator.CloudflareOpsTest do
 
       assert {:ok, _} = CloudflareOps.delete_record(record, :delete_all_matching)
 
-      assert_receive {:list_zone_id, "fallback-zone", "missing-zone.example.com"}
+      assert_receive {:list_zone_id, "fallback-zone", "missing-zone"}
       assert_receive {:delete_zone_id, "fallback-zone", "cf-record-id"}
     end
   end
