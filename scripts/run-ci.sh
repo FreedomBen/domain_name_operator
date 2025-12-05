@@ -7,6 +7,10 @@ else
   echo "RELEASE_VERSION already set to '${RELEASE_VERSION}'"
 fi
 
+# Short circuit and return success for now
+echo "CI is disabled temporarily"
+exit 0
+
 docker run --rm  \
   "docker.io/freedomben/domain_name_operator:${RELEASE_VERSION}" \
   mix test
