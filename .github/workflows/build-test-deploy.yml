@@ -38,6 +38,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Authenticate to DO Container Registry
+        env:
+          DOCKER_CONFIG: ${{ secrets.DOCKER_CONFIG }}
+        run: |
+          mkdir -p $HOME/.docker
+          echo "${DOCKER_CONFIG}" > $HOME/.docker/config.json
+
       - name: Test
         run: ./scripts/run-ci.sh
 

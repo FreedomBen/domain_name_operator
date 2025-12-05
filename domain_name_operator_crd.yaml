@@ -131,7 +131,6 @@ spec:
                       ttl:
                         type: integer
                         format: int32
-              additionalProperties: false
       subresources:
         status: {}
       additionalPrinterColumns:
