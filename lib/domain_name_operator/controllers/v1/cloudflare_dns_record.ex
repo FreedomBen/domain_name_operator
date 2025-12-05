@@ -503,19 +503,17 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     end
   end
 
-  def parse(
-        %{
-          "metadata" => %{"name" => _name},
-          "spec" => %{
-            "namespace" => ns,
-            "serviceName" => service_name,
-            "hostName" => hostname,
-            "domain" => domain,
-            "zoneId" => zone_id,
-            "proxied" => proxied
-          }
+  def parse(%{
+        "metadata" => %{"name" => _name},
+        "spec" => %{
+          "namespace" => ns,
+          "serviceName" => service_name,
+          "hostName" => hostname,
+          "domain" => domain,
+          "zoneId" => zone_id,
+          "proxied" => proxied
         }
-      ) do
+      }) do
     Logger.debug(
       __ENV__,
       "Parsing record: namespace='#{ns}' serviceName='#{service_name}' hostName='#{hostname}' domain='#{domain}' zoneId='#{zone_id}'"

@@ -278,4 +278,75 @@ defmodule DomainNameOperator.CloudflareOpsTest do
       assert_receive {:delete_zone_id, "fallback-zone", "cf-record-id"}
     end
   end
+
+  describe "zone id requirement" do
+    defmodule MissingZoneMock do
+      @behaviour DomainNameOperator.CloudflareClient
+
+      @impl true
+      def new_client(_api_token),
+        do: raise("cloudflare client should not be created without a zone id")
+
+      @impl true
+      def hostname_exists?(_client, _zone_id, _hostname),
+        do: raise("unexpected hostname_exists?/3 call")
+
+      @impl true
+      def list_a_records(_client, _zone_id), do: raise("unexpected list_a_records/2 call")
+
+      @impl true
+      def list_a_records_for_host_domain(_client, _zone_id, _host, _domain),
+        do: raise("unexpected list_a_records_for_host_domain/4 call")
+
+      @impl true
+      def create_a_record(_client, _zone_id, _record),
+        do: raise("unexpected create_a_record/3 call")
+
+      @impl true
+      def delete_a_record(_client, _zone_id, _id), do: raise("unexpected delete_a_record/3 call")
+    end
+
+    setup do
+      original_client = Application.get_env(:domain_name_operator, :cloudflare_client)
+      original_zone = Application.get_env(:domain_name_operator, :cloudflare_default_zone_id)
+
+      Application.put_env(:domain_name_operator, :cloudflare_client, MissingZoneMock)
+      Application.delete_env(:domain_name_operator, :cloudflare_default_zone_id)
+
+      on_exit(fn ->
+        Application.put_env(:domain_name_operator, :cloudflare_client, original_client)
+        Application.put_env(:domain_name_operator, :cloudflare_default_zone_id, original_zone)
+      end)
+    end
+
+    test "add_or_update_record returns error when zone id is missing" do
+      record = %CloudflareApi.DnsRecord{
+        id: nil,
+        zone_id: nil,
+        hostname: "no-zone.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.50",
+        proxied: false
+      }
+
+      assert {:error, :missing_zone_id} = CloudflareOps.add_or_update_record(record)
+    end
+
+    test "delete_record returns error when zone id is missing" do
+      record = %CloudflareApi.DnsRecord{
+        id: "no-zone-id",
+        zone_id: nil,
+        hostname: "no-zone.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.51",
+        proxied: false
+      }
+
+      assert {:error, :missing_zone_id} = CloudflareOps.delete_record(record, :log_error)
+    end
+
+    test "get_a_records/3 short-circuits without a zone id" do
+      assert [] = CloudflareOps.get_a_records(nil, "no-zone", "example.com")
+    end
+  end
 end
