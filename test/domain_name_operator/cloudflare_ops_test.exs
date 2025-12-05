@@ -210,4 +210,72 @@ defmodule DomainNameOperator.CloudflareOpsTest do
       assert :ok = CloudflareOps.delete_records(records)
     end
   end
+
+  describe "delete_record/2 zone id fallback" do
+    defmodule DeleteZoneMock do
+      @behaviour DomainNameOperator.CloudflareClient
+
+      @impl true
+      def new_client(_api_token), do: :delete_zone_mock
+
+      @impl true
+      def hostname_exists?(_client, _zone_id, _hostname), do: {:ok, false}
+
+      @impl true
+      def list_a_records(_client, _zone_id), do: {:ok, []}
+
+      @impl true
+      def list_a_records_for_host_domain(_client, zone_id, host, _domain) do
+        send(self(), {:list_zone_id, zone_id, host})
+
+        {:ok,
+         [
+           %CloudflareApi.DnsRecord{
+             id: "cf-record-id",
+             zone_id: "",
+             hostname: host,
+             zone_name: "example.com",
+             ip: "203.0.113.20",
+             proxied: false
+           }
+         ]}
+      end
+
+      @impl true
+      def create_a_record(_client, _zone_id, _record), do: {:ok, %{}}
+
+      @impl true
+      def delete_a_record(_client, zone_id, record_id) do
+        send(self(), {:delete_zone_id, zone_id, record_id})
+        {:ok, %{}}
+      end
+    end
+
+    test "falls back to configured default zone id when records lack zone_id" do
+      original_client = Application.get_env(:domain_name_operator, :cloudflare_client)
+      original_zone = Application.get_env(:domain_name_operator, :cloudflare_default_zone_id)
+
+      Application.put_env(:domain_name_operator, :cloudflare_client, DeleteZoneMock)
+      Application.put_env(:domain_name_operator, :cloudflare_default_zone_id, "fallback-zone")
+
+      on_exit(fn ->
+        Application.put_env(:domain_name_operator, :cloudflare_client, original_client)
+        Application.put_env(:domain_name_operator, :cloudflare_default_zone_id, original_zone)
+      end)
+
+      record = %CloudflareApi.DnsRecord{
+        id: nil,
+        zone_id: "",
+        hostname: "missing-zone.example.com",
+        zone_name: "example.com",
+        ip: "203.0.113.20",
+        proxied: false
+      }
+
+      assert {:ok, _} = CloudflareOps.delete_record(record, :delete_all_matching)
+
+      assert_receive {:list_zone_id, "fallback-zone", "missing-zone.example.com"}
+      assert_receive {:delete_zone_id, "fallback-zone", "cf-record-id"}
+    end
+  end
 end

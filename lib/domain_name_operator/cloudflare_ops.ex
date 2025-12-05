@@ -168,7 +168,12 @@ defmodule DomainNameOperator.CloudflareOps do
       "[delete_record] id is nil [1]:  multiple_match_behavior='#{multiple_match_behavior}', record='#{Utils.to_string(record)}'"
     )
 
-    recs = get_a_records(record.zone_id, record.hostname, record.zone_name)
+    zone_id = zone_id_or_default(record.zone_id)
+
+    recs =
+      zone_id
+      |> get_a_records(record.hostname, record.zone_name)
+      |> Enum.map(&ensure_zone_id(&1, zone_id))
 
     Logger.debug(
       "[delete_record] id is nil [2]: number of matching records is '#{Enum.count(recs)}' - recs='#{Utils.to_string(recs)}"
@@ -193,10 +198,13 @@ defmodule DomainNameOperator.CloudflareOps do
   def delete_record(record, _multiple_match_behavior) do
     Logger.warning("[delete_record]: record='#{Utils.to_string(record)}'")
 
+    zone_id = zone_id_or_default(record.zone_id)
+    record = ensure_zone_id(record, zone_id)
+
     Logger.notice(__ENV__, "Dropping record for '#{record.hostname}' from cache")
     Cache.delete_records(record.hostname)
 
-    cloudflare_client().delete_a_record(client(), record.zone_id, record.id)
+    cloudflare_client().delete_a_record(client(), zone_id, record.id)
   end
 
   @doc ~S"""
@@ -257,5 +265,34 @@ defmodule DomainNameOperator.CloudflareOps do
 
   defp cloudflare_client do
     Application.get_env(:domain_name_operator, :cloudflare_client, CloudflareClient)
+  end
+
+  defp ensure_zone_id(%CloudflareApi.DnsRecord{zone_id: zone_id} = record, _fallback)
+       when is_binary(zone_id) and zone_id != "" do
+    record
+  end
+
+  defp ensure_zone_id(%CloudflareApi.DnsRecord{} = record, fallback_zone_id)
+       when is_binary(fallback_zone_id) and fallback_zone_id != "" do
+    %{record | zone_id: fallback_zone_id}
+  end
+
+  defp ensure_zone_id(record, _fallback) do
+    case default_zone_id() do
+      nil -> record
+      "" -> record
+      zone_id -> %{record | zone_id: zone_id}
+    end
+  end
+
+  defp zone_id_or_default(zone_id) do
+    cond do
+      is_binary(zone_id) and zone_id != "" -> zone_id
+      true -> default_zone_id()
+    end
+  end
+
+  defp default_zone_id do
+    Application.get_env(:domain_name_operator, :cloudflare_default_zone_id)
   end
 end
