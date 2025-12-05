@@ -117,6 +117,7 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
     kind: "CloudflareDnsRecord",
     shortNames: ["dns"]
   }
+  @event_message_limit 1024
 
   @doc false
   def api_group, do: @group
@@ -148,7 +149,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:error, reason} ->
         failure_event(axn,
           reason: "CloudflareDnsRecordFailed",
-          message: "Failed to reconcile Cloudflare DNS record: #{inspect(reason)}"
+          message:
+            build_event_failure_message(
+              "Failed to reconcile Cloudflare DNS record",
+              reason
+            )
         )
     end
   end
@@ -164,7 +169,11 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       {:error, reason} ->
         failure_event(axn,
           reason: "CloudflareDnsRecordDeleteFailed",
-          message: "Failed to delete Cloudflare DNS record: #{inspect(reason)}"
+          message:
+            build_event_failure_message(
+              "Failed to delete Cloudflare DNS record",
+              reason
+            )
         )
     end
   end
@@ -760,5 +769,28 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
 
   defp cloudflare_ops do
     Application.get_env(:domain_name_operator, :cloudflare_ops, DomainNameOperator.CloudflareOps)
+  end
+
+  defp build_event_failure_message(prefix, reason) do
+    "#{prefix}: #{format_event_reason(reason)}"
+    |> truncate_event_message()
+  end
+
+  defp format_event_reason(reason) do
+    inspect(reason, printable_limit: truncatable_print_limit())
+  rescue
+    _ -> "unprintable error"
+  end
+
+  defp truncatable_print_limit do
+    max(@event_message_limit - 64, 128)
+  end
+
+  defp truncate_event_message(message) when is_binary(message) do
+    if String.length(message) <= @event_message_limit do
+      message
+    else
+      String.slice(message, 0, @event_message_limit - 3) <> "..."
+    end
   end
 end
