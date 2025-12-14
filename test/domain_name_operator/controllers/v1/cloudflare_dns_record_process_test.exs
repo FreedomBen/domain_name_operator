@@ -27,6 +27,18 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordProcessTest do
     end
   end
 
+  defmodule ApiErrorK8sClientMock do
+    @behaviour DomainNameOperator.K8sClient
+
+    alias K8s.Client.APIError
+
+    @impl true
+    def get_service(namespace, name) do
+      api_error = %APIError{message: "services \"#{name}\" not found", reason: "NotFound"}
+      {:error, {:error, api_error}, %{namespace: namespace, name: name}}
+    end
+  end
+
   setup do
     Application.put_env(:domain_name_operator, :k8s_client, DomainNameOperator.K8sClient.Mock)
     Application.put_env(:domain_name_operator, :cloudflare_ops, DomainNameOperator.CloudflareOps)
@@ -88,6 +100,31 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecordProcessTest do
         })
 
       assert {:error, :service_not_found} = CloudflareDnsRecord.process_record(payload)
+    end
+
+    test "handles tuple-wrapped API errors from get_service/2" do
+      Application.put_env(:domain_name_operator, :k8s_client, ApiErrorK8sClientMock)
+
+      payload =
+        base_payload(%{
+          "spec" => %{
+            "namespace" => "default",
+            "serviceName" => "missing-service",
+            "hostName" => "app",
+            "domain" => "example.com",
+            "zoneId" => "zone-123",
+            "proxied" => true
+          }
+        })
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, :service_general} = CloudflareDnsRecord.process_record(payload)
+        end)
+
+      assert log =~ "Service 'missing-service' in namespace 'default' had error"
+      assert log =~ "K8s.Client.APIError"
+      assert log =~ "NotFound"
     end
 
     defmodule CloudflareOpsAuthMissingMock do

@@ -386,7 +386,8 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
   end
 
   def process_record_error(:service_general, err, namespace, name, cloudflarednsrecord) do
-    msg = "Service '#{name}' in namespace '#{namespace}' had error '#{err}'"
+    msg =
+      "Service '#{name}' in namespace '#{namespace}' had error '#{Utils.to_string(err)}'"
 
     Utils.Logger.error(
       __ENV__,
