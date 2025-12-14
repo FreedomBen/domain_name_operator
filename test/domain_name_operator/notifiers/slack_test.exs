@@ -50,11 +50,16 @@ defmodule DomainNameOperator.Notifiers.SlackTest do
     assert body[:username] == "dns-operator"
     assert body[:icon_emoji] == ":robot_face:"
     assert String.contains?(body[:text], "Created DNS A record example.com")
-    assert Enum.any?(Keyword.get(opts, :headers), fn {key, _} -> String.downcase(key) == "content-type" end)
+
+    assert Enum.any?(Keyword.get(opts, :headers), fn {key, _} ->
+             String.downcase(key) == "content-type"
+           end)
   end
 
   test "surfaces Slack API error responses" do
-    SlackHttpClientStub.put_response({:ok, %Tesla.Env{status: 200, body: %{"ok" => false, "error" => "channel_not_found"}}})
+    SlackHttpClientStub.put_response(
+      {:ok, %Tesla.Env{status: 200, body: %{"ok" => false, "error" => "channel_not_found"}}}
+    )
 
     event = %Event{action: :updated, record: dns_record(), metadata: %{}}
 

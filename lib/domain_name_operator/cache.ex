@@ -39,7 +39,8 @@ defmodule DomainNameOperator.Cache do
             records -> records
           end
 
-        true -> nil
+        true ->
+          nil
       end
     end)
   end

@@ -13,6 +13,7 @@ defmodule DomainNameOperator.CloudflareOpsTest do
       :cloudflare_client,
       DomainNameOperator.CloudflareClient.Mock
     )
+
     Application.put_env(:domain_name_operator, :notifier, DomainNameOperator.Notifier.Test)
 
     # Start cache agent if not already running
@@ -354,7 +355,9 @@ defmodule DomainNameOperator.CloudflareOpsTest do
 
       assert {:ok, _} = CloudflareOps.delete_record(record, :delete_all_matching)
 
-      assert_receive {:list_zone_id, "fallback-zone", host} when host in ["missing-zone", "missing-zone.example.com"]
+      assert_receive {:list_zone_id, "fallback-zone", host}
+                     when host in ["missing-zone", "missing-zone.example.com"]
+
       assert_receive {:delete_zone_id, "fallback-zone", "cf-record-id"}
     end
   end

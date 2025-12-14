@@ -8,7 +8,8 @@ config :domain_name_operator,
 if config_env() != :test do
   notifier =
     case {System.get_env("SLACK_TOKEN"), System.get_env("SLACK_CHANNEL")} do
-      {token, channel} when is_binary(token) and token != "" and is_binary(channel) and channel != "" ->
+      {token, channel}
+      when is_binary(token) and token != "" and is_binary(channel) and channel != "" ->
         DomainNameOperator.Notifiers.Slack
 
       _ ->

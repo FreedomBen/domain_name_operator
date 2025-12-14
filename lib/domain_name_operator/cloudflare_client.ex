@@ -31,7 +31,7 @@ defmodule DomainNameOperator.CloudflareClient do
 
   @impl true
   def new_client(api_token) do
-    CloudflareApi.new(api_token)
+    CloudflareApi.new(api_token, rate_limit_retry: rate_limit_retry_opts())
   end
 
   @impl true
@@ -57,5 +57,15 @@ defmodule DomainNameOperator.CloudflareClient do
   @impl true
   def delete_a_record(client, zone_id, id) do
     CloudflareApi.DnsRecords.delete(client, zone_id, id)
+  end
+
+  defp rate_limit_retry_opts do
+    case Application.get_env(:domain_name_operator, :cloudflare_rate_limit_retry, true) do
+      false -> false
+      nil -> true
+      true -> true
+      opts when is_list(opts) -> opts
+      _other -> true
+    end
   end
 end

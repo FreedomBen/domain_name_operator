@@ -209,6 +209,7 @@ defmodule DomainNameOperator.CloudflareOps do
   is the default
   """
   def delete_record(record, multiple_match_behavior \\ :log_error, opts \\ [])
+
   def delete_record(%CloudflareApi.DnsRecord{id: nil} = record, multiple_match_behavior, opts) do
     Logger.debug(
       "[delete_record] id is nil [1]:  multiple_match_behavior='#{multiple_match_behavior}', record='#{Utils.to_string(record)}'"
@@ -280,6 +281,7 @@ defmodule DomainNameOperator.CloudflareOps do
   is the default
   """
   def delete_records(records, multiple_match_behavior \\ :log_error, opts \\ [])
+
   def delete_records(records, multiple_match_behavior, opts) when is_list(records) do
     Logger.debug(
       "[delete_records]: multiple_match_behavior='#{multiple_match_behavior}', records='#{Utils.to_string(records)}'"
