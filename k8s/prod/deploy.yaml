@@ -223,6 +223,7 @@ rules:
       - domain-name-operator.tamx.org
     resources:
       - cloudflarednsrecords
+      - cloudflarednsrecords/status
     verbs:
       - '*'
   - apiGroups:
