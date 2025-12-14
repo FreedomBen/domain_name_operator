@@ -139,7 +139,9 @@ defmodule DomainNameOperator.Controller.V1.CloudflareDnsRecord do
       to_rbac_rule(
         {@group, [@names.plural, "#{@names.plural}/status"],
          ["get", "list", "watch", "update", "patch"]}
-      )
+      ),
+      to_rbac_rule({"", ["events"], ["create", "patch", "update"]}),
+      to_rbac_rule({"events.k8s.io", ["events"], ["create", "patch", "update"]})
     ]
   end
 
