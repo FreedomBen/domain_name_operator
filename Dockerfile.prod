@@ -4,7 +4,9 @@ ENV USER_HOME /home/docker
 
 RUN addgroup --gid 1000 docker \
  && adduser --uid 1000 --gid 1000 --disabled-password --gecos "Docker User" --home ${USER_HOME} docker \
- && usermod -L docker
+ && usermod -L docker \
+ && mkdir -p ${USER_HOME}/.mix ${USER_HOME}/.hex ${USER_HOME}/.config \
+ && chown -R docker:docker ${USER_HOME}
 
 # Configure apt, install updates and common packages, and clean up apt's cache
 ENV DEBIAN_FRONTEND=noninteractive
@@ -45,8 +47,11 @@ RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-k
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
-# Set environment to production
-ENV MIX_ENV prod
+# Set environment to production and ensure Mix/Hex use the writable home
+ENV MIX_ENV=prod \
+    HOME=${USER_HOME} \
+    MIX_HOME=${USER_HOME}/.mix \
+    HEX_HOME=${USER_HOME}/.hex
 
 # Copy over source code
 RUN mkdir /app \

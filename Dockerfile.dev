@@ -1,10 +1,12 @@
-FROM elixir:1.13
+FROM elixir:1.19
 
 ENV USER_HOME /home/docker
 
 RUN addgroup --gid 1000 docker \
  && adduser --uid 1000 --gid 1000 --disabled-password --gecos "Docker User" --home ${USER_HOME} docker \
- && usermod -L docker
+ && usermod -L docker \
+ && mkdir -p ${USER_HOME}/.mix ${USER_HOME}/.hex ${USER_HOME}/.config \
+ && chown -R docker:docker ${USER_HOME}
 
 # Configure apt, install updates and common packages, and clean up apt's cache
 ENV DEBIAN_FRONTEND=noninteractive
@@ -17,12 +19,13 @@ RUN apt-get update \
     ca-certificates \
     software-properties-common \
     locales \
+    tini \
  && apt-get install --assume-yes --no-install-recommends \
     curl \
     psmisc \
     git \
     build-essential \
-    python \
+    python3 \
     jq \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/ \
@@ -45,8 +48,11 @@ RUN wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-k
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/
 
-# Set environment to dev
-ENV MIX_ENV dev
+# Set environment to dev and ensure Mix/Hex use the writable home
+ENV MIX_ENV=dev \
+    HOME=${USER_HOME} \
+    MIX_HOME=${USER_HOME}/.mix \
+    HEX_HOME=${USER_HOME}/.hex
 
 # Copy over source code
 RUN mkdir /app \
