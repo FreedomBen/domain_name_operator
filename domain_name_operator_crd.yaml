@@ -1,5 +1,6 @@
 #
-# Note:  This file is not canonical.  See k8s/prod/deploy.yaml and k8s/staging/deploy.yaml
+# Note:  This file is an example.  See k8s/prod/deploy.yaml and k8s/staging/deploy.yaml 
+#        for currently deployed versions of CRDs
 #
 
 ---
@@ -18,7 +19,6 @@ spec:
     shortNames:
       - dns
       - cfdns
-  #scope: Cluster
   scope: Namespaced
   versions:
     - name: v1
