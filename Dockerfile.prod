@@ -17,7 +17,6 @@ RUN apt-get update \
     apt-utils \
     apt-transport-https \
     ca-certificates \
-    software-properties-common \
     locales \
     tini \
  && apt-get install --assume-yes --no-install-recommends \
