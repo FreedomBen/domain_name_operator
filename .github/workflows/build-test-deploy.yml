@@ -78,6 +78,7 @@ jobs:
 
   deploy-prod:
     #needs: [deploy-staging]
+    needs: [test]
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/prod-') }}
     env:
