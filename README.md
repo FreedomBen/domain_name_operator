@@ -28,6 +28,27 @@ spec:
   proxied: true
 ```
 
+## Example DNS Record (with Zone ID)
+
+```yaml
+apiVersion: domain-name-operator.tamx.org/v1
+kind: CloudflareDnsRecord
+metadata:
+  name: api
+  labels:
+    app: edge
+    tier: api
+    env: prod
+    kind: cloudflarednsrecord
+  namespace: edge-prod
+spec:
+  hostName: api.example.com
+  serviceName: edge-api
+  domain: example.com
+  zoneId: 023e105f4ecef8ad9ca31a8372d0c353
+  proxied: false
+```
+
 ## Development
 
 Start locally:
