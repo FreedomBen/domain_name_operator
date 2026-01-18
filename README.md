@@ -9,6 +9,25 @@ DomainNameOperator is an Elixir-powered Kubernetes operator built with [Bonny](h
 - Ships with controller logic, caching, and exception handling tailored for Cloudflare automation.
 - Runs anywhere you can deploy Kubernetes operators; see `k8s/` and `domain_name_operator_crd.yaml` for manifests.
 
+## Example DNS Record
+
+```yaml
+apiVersion: domain-name-operator.tamx.org/v1
+kind: CloudflareDnsRecord
+metadata:
+  name: accounts
+  labels:
+    app: malan
+    tier: web
+    env: prod
+    kind: cloudflarednsrecord
+  namespace: malan-prod
+spec:
+  hostName: accounts.ameelio.org
+  serviceName: malan
+  proxied: true
+```
+
 ## Development
 
 Start locally:
