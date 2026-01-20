@@ -5,6 +5,16 @@ config :domain_name_operator,
   cloudflare_default_domain: System.get_env("CLOUDFLARE_DEFAULT_DOMAIN"),
   cloudflare_default_zone_id: System.get_env("CLOUDFLARE_DEFAULT_ZONE_ID")
 
+case System.get_env("SENTRY_DSN") do
+  nil ->
+    :ok
+
+  value ->
+    if String.trim(value) == "" do
+      System.delete_env("SENTRY_DSN")
+    end
+end
+
 if config_env() != :test do
   notifier =
     case {System.get_env("SLACK_TOKEN"), System.get_env("SLACK_CHANNEL")} do
