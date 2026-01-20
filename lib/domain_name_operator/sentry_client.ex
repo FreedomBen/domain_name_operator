@@ -18,10 +18,13 @@ defmodule DomainNameOperator.SentryClient do
   @spec enabled?() :: boolean()
   def enabled? do
     case Application.fetch_env(:sentry, :dsn) do
-      {:ok, dsn} when is_binary(dsn) -> String.trim(dsn) != ""
-      _ -> false
+      {:ok, dsn} -> present?(dsn)
+      :error -> present?(System.get_env("SENTRY_DSN"))
     end
   end
+
+  defp present?(dsn) when is_binary(dsn), do: String.trim(dsn) != ""
+  defp present?(_dsn), do: false
 
   @impl true
   def capture_exception(exception, options) do

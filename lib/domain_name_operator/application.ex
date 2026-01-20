@@ -4,9 +4,11 @@ defmodule DomainNameOperator.Application do
   @moduledoc false
 
   use Application
+  require Logger
 
   @impl true
   def start(_type, _args) do
+    maybe_start_sentry()
     maybe_attach_sentry_backend()
 
     children =
@@ -22,6 +24,18 @@ defmodule DomainNameOperator.Application do
   defp maybe_attach_sentry_backend do
     if DomainNameOperator.SentryClient.enabled?() do
       Logger.add_backend(Sentry.LoggerBackend)
+    end
+  end
+
+  defp maybe_start_sentry do
+    if DomainNameOperator.SentryClient.enabled?() do
+      case Application.ensure_all_started(:sentry) do
+        {:ok, _} -> :ok
+        {:error, {app, reason}} ->
+          Logger.error("Failed to start #{inspect(app)}: #{inspect(reason)}")
+        {:error, reason} ->
+          Logger.error("Failed to start sentry: #{inspect(reason)}")
+      end
     end
   end
 

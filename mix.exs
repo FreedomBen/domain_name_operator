@@ -18,7 +18,7 @@ defmodule DomainNameOperator.MixProject do
   def application do
     [
       mod: {DomainNameOperator.Application, []},
-      extra_applications: [:logger, :sentry]
+      extra_applications: [:logger]
     ]
   end
 
