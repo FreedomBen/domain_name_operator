@@ -26,8 +26,19 @@ if config_env() != :test do
     ]
 end
 
+env_or_nil = fn var ->
+  case System.get_env(var) do
+    nil ->
+      nil
+
+    value ->
+      value = String.trim(value)
+      if value == "", do: nil, else: value
+  end
+end
+
 config :sentry,
-  dsn: System.get_env("SENTRY_DSN"),
+  dsn: env_or_nil.("SENTRY_DSN"),
   environment_name: System.get_env("MIX_ENV") || :dev,
   enable_source_code_context: true,
   root_source_code_path: File.cwd!(),
