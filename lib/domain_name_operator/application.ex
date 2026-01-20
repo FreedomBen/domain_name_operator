@@ -20,7 +20,7 @@ defmodule DomainNameOperator.Application do
   end
 
   defp maybe_attach_sentry_backend do
-    if Application.get_env(:sentry, :dsn) do
+    if DomainNameOperator.SentryClient.enabled?() do
       Logger.add_backend(Sentry.LoggerBackend)
     end
   end
